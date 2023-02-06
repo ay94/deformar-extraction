@@ -104,3 +104,66 @@ class TCDataset:
             'sentence_num': torch.tensor(sentence_num, dtype=torch.long),
         }
 
+
+class WordPieceDataset:
+    def __init__(self, texts, tags, config, tokenizer, preprocessor=None):
+        self.texts = texts
+        self.tags = tags
+        self.config = config
+        self.PREPROCESSOR = preprocessor
+        self.TOKENIZER = tokenizer
+
+    def __len__(self):
+        return len(self.texts)
+
+    def __getitem__(self, item):
+        textlist = self.texts[item]
+        tags = self.tags[item]
+        self.first_tokens = []
+        self.sentence_ind = []
+        self.wordpieces = []
+        self.words = []
+        self.labels = []
+        self.tokens = []
+        self.sentence_len = 0
+        self.wordpieces_len = 0
+        for word, label in zip(textlist, tags):
+            if self.PREPROCESSOR != None:
+                clean_word = self.PREPROCESSOR.preprocess(word)
+                word_tokens = self.TOKENIZER.tokenize(clean_word)
+            else:
+                word_tokens = self.TOKENIZER.tokenize(word)
+            if len(word_tokens) > 0:
+                self.first_tokens.append(word_tokens[0])
+                self.sentence_ind.append(item)
+                self.tokens.extend(word_tokens)
+                self.wordpieces.append(word_tokens)
+                self.words.append(word)
+                self.labels.append(label)
+                # Account for [CLS] and [SEP] with "- 2" and with "- 3" for RoBERTa.
+        special_tokens_count = self.TOKENIZER.num_special_tokens_to_add()
+        if len(self.first_tokens) > self.config.MAX_SEQ_LEN - special_tokens_count:
+            self.first_tokens = self.first_tokens[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
+            self.sentence_ind = self.sentence_ind[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
+            self.wordpieces = self.wordpieces[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
+            self.words = self.words[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
+            self.labels = self.labels[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
+
+        # Add the [SEP] token
+        self.first_tokens += [self.TOKENIZER.sep_token]
+        self.sentence_ind += [self.TOKENIZER.sep_token]
+        self.wordpieces += [self.TOKENIZER.sep_token]
+        self.labels += [self.TOKENIZER.sep_token]
+        self.tokens += [self.TOKENIZER.sep_token]
+        # Add the [CLS] TOKEN
+        self.first_tokens = [self.TOKENIZER.cls_token] + self.first_tokens
+        self.sentence_ind = [self.TOKENIZER.cls_token] + self.sentence_ind
+        self.wordpieces = [self.TOKENIZER.cls_token] + self.wordpieces
+        self.labels = [self.TOKENIZER.cls_token] + self.labels
+        self.tokens = [self.TOKENIZER.cls_token] + self.tokens
+        # Length information
+        self.sentence_len = len(self.words)
+        self.wordpieces_len = len(self.tokens)
+
+
+
