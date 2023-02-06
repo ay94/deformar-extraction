@@ -57,7 +57,8 @@ class FileHandler():
     def load_json(self, path):
         with open(self.cr_fn(path)) as json_file:
           data = json.load(json_file)
-          return self.keys_to_int(data)
+          self.keys_to_int(data)
+          return data
 
     def save_object(self, obj, obj_name):
         with open(obj_name, 'wb') as output:  # Overwrites any existing file.
