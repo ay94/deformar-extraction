@@ -79,7 +79,7 @@ class FileHandler():
     def save_model(self, model, model_name):
         torch.save(model, model_name)
 
-    def load_model(model_name):
+    def load_model(self, model_name):
         model = torch.load(model_name)
         model.eval()
         return model
