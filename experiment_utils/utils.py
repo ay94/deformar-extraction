@@ -1,4 +1,6 @@
 import json
+import torch
+import pickle as pkl
 from collections import Counter
 
 class FileHandler():
@@ -42,6 +44,12 @@ class FileHandler():
             corpora[f'{name}'] = {'train': tr, 'test': te, 'val': vl, 'labels': labels, 'inv_labels': inv_labels}
         return corpora
 
+    def keys_to_int(self, data):
+        for key in data.keys():
+            wrong_dict = data[key]['inv_labels']
+            correct_dict = {int(k): v for k, v in wrong_dict.items()}
+            data[key]['inv_labels'] = correct_dict
+
     def save_json(self, path, data):
         with open(self.cr_fn(path), 'w') as outfile:
             json.dump(data, outfile)
@@ -49,4 +57,31 @@ class FileHandler():
     def load_json(self, path):
         with open(self.cr_fn(path)) as json_file:
           data = json.load(json_file)
-          return data
+          return self.keys_to_int(data)
+
+    def save_object(self, obj, obj_name):
+        with open(obj_name, 'wb') as output:  # Overwrites any existing file.
+            pkl.dump(obj, output, pkl.HIGHEST_PROTOCOL)
+
+    def load_object(self, obj_name):
+        with open(obj_name, 'rb') as inp:
+            obj = pkl.load(inp)
+        return obj
+
+    def save_model_state(self, model, model_name):
+        torch.save(model.state_dict(), model_name)
+
+    def load_model_state(self, model, model_name):
+        model.load_state_dict(torch.load(model_name))
+        return model
+
+    def save_model(self, model, model_name):
+        torch.save(model, model_name)
+
+    def load_model(model_name):
+        model = torch.load(model_name)
+        model.eval()
+        return model
+
+
+
