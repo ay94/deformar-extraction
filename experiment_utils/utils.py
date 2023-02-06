@@ -61,11 +61,11 @@ class FileHandler():
           return data
 
     def save_object(self, obj, obj_name):
-        with open(obj_name, 'wb') as output:  # Overwrites any existing file.
+        with open(self.cr_fn(obj_name), 'wb') as output:  # Overwrites any existing file.
             pkl.dump(obj, output, pkl.HIGHEST_PROTOCOL)
 
     def load_object(self, obj_name):
-        with open(obj_name, 'rb') as inp:
+        with open(self.cr_fn(obj_name), 'rb') as inp:
             obj = pkl.load(inp)
         return obj
 
