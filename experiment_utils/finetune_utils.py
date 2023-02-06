@@ -1,7 +1,11 @@
 import time
 import torch
+import numpy as np
+import pandas as pd
 from torch import nn
 from transformers import AutoTokenizer, AutoModel, get_linear_schedule_with_warmup
+from seqeval.metrics import accuracy_score as seq_accuracy, f1_score as seq_f1, precision_score as seq_precision, recall_score as seq_recall, classification_report as seq_classification
+from sklearn.metrics import accuracy_score as skl_accuracy, f1_score as skl_f1, precision_score as skl_precision, recall_score as skl_recall, classification_report as skl_classification
 
 def current_milli_time():
     return int(round(time.time() * 1000))
@@ -203,6 +207,117 @@ class TCModel(nn.Module):
         average_loss, losses = self.loss_fn(logits, labels, attention_mask, self.num_tag)
         return {'average_loss': average_loss, 'losses': losses, 'logits': logits,
                 'hidden_states': output['last_hidden_state']}
+
+
+class Evaluation:
+    def __init__(self, label_ids, predictions, inv_label_map, average_loss) -> None:
+        self.truth = label_ids
+        self.preds = predictions
+        self.inv_labels = inv_label_map
+        self.loss = average_loss
+
+    def create_classification_report(self, raw):
+        report = raw.strip().split('\n')
+        lines = []
+        for line in report[1:]:
+            tokens = line.split()
+            if line != '':
+                if len(tokens) > 5:
+                    del tokens[1]
+                lines.append(tokens)
+        return pd.DataFrame(lines, columns=['Tag', 'Precision', 'Recall', 'F1', 'support'])
+
+    def align_predictions(self):
+
+        preds = np.argmax(self.preds, axis=2)
+        batch_size, seq_len = preds.shape
+
+        truth_list = [[] for _ in range(batch_size)]
+        preds_list = [[] for _ in range(batch_size)]
+
+        for i in range(batch_size):
+            for j in range(seq_len):
+                if self.truth[i, j] != nn.CrossEntropyLoss().ignore_index:
+                    truth_list[i].append(self.inv_labels[self.truth[i][j]])
+                    preds_list[i].append(self.inv_labels[preds[i][j]])
+        return truth_list, preds_list
+
+    def compute_metrics(self):
+        truth_list, preds_list = self.align_predictions()
+        flat_truth_list = [item for sublist in truth_list for item in sublist]
+        flat_preds_list = [item for sublist in preds_list for item in sublist]
+
+        seq_report = seq_classification(y_true=truth_list, y_pred=preds_list, digits=4)
+        sk_report = skl_classification(y_true=flat_truth_list, y_pred=flat_preds_list, digits=4)
+
+        return {
+            'Seqeval':
+
+                {"Precision": seq_precision(y_true=truth_list, y_pred=preds_list, average='micro'),
+                 "Recall": seq_recall(y_true=truth_list, y_pred=preds_list, average='micro'),
+                 "F1": seq_f1(y_true=truth_list, y_pred=preds_list, average='micro'),
+                 "Loss": self.loss,
+                 "classification": self.create_classification_report(seq_report),
+                 "output": {'y_true': truth_list, 'y_pred': preds_list}},
+
+            'Sklearn':
+
+                {"Precision": skl_precision(y_true=flat_truth_list, y_pred=flat_preds_list, average='macro'),
+                 "Recall": skl_recall(y_true=flat_truth_list, y_pred=flat_preds_list, average='macro'),
+                 "F1": skl_f1(y_true=flat_truth_list, y_pred=flat_preds_list, average='macro'),
+                 "Loss": self.loss,
+                 "classification": self.create_classification_report(sk_report),
+                 "output": {'y_true': flat_truth_list, 'y_pred': flat_preds_list}}
+        }
+
+
+class FineTuneUtils:
+    def __init__(self) -> None:
+        pass
+
+    def train_fn(self, data_loader, model, optimizer, device, scheduler, config):
+        model.train()
+        final_loss = 0
+        for i, data in enumerate(tqdm(data_loader, total=len(data_loader))):
+            for k, v in data.items():
+                data[k] = v.to(device)
+            outputs = model(**data)
+            loss = outputs['average_loss']
+            # calculate the gradient and we can say loss.grad where the gradient is stored
+            loss.backward()
+            # item returns the scalar only not the whole tensor
+            final_loss += loss.item()
+            if (i + 1) % config.ACCUMULATION_STEPS == 0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), config.MAX_GRAD_NORM)
+                optimizer.step()
+                scheduler.step()
+                optimizer.zero_grad()
+        return (final_loss / len(data_loader))
+
+    def eval_fn(self, data_loader, model, device, inv_labels):
+        model.eval()
+        with torch.no_grad():
+            final_loss = 0
+            preds = None
+            labels = None
+            for data in tqdm(data_loader, total=len(data_loader)):
+                for k, v in data.items():
+                    data[k] = v.to(device)
+                outputs = model(**data)
+                loss = outputs['average_loss']
+                logits = outputs['logits']
+                final_loss += loss.item()
+                if logits is not None:
+                    preds = logits if preds is None else torch.cat((preds, logits), dim=0)
+                if data['labels'] is not None:
+                    labels = data['labels'] if labels is None else torch.cat((labels, data['labels']), dim=0)
+            preds = preds.detach().cpu().numpy()
+            labels = labels.cpu().numpy()
+            evaluation = Evaluation(labels, preds, inv_labels, final_loss)
+            metrics = evaluation.compute_metrics()
+        return metrics, final_loss
+
+
 
 
 
