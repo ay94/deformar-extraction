@@ -70,17 +70,17 @@ class FileHandler():
         return obj
 
     def save_model_state(self, model, model_name):
-        torch.save(model.state_dict(), model_name)
+        torch.save(model.state_dict(), self.cr_fn(model_name))
 
     def load_model_state(self, model, model_name):
-        model.load_state_dict(torch.load(model_name))
+        model.load_state_dict(torch.load(self.cr_fn(model_name)))
         return model
 
     def save_model(self, model, model_name):
-        torch.save(model, model_name)
+        torch.save(model, self.cr_fn(model_name))
 
     def load_model(self, model_name):
-        model = torch.load(model_name)
+        model = torch.load(self.cr_fn(model_name))
         model.eval()
         return model
 
