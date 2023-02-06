@@ -318,6 +318,35 @@ class FineTuneUtils:
         return metrics, final_loss
 
 
+class Metrics:
+    def __init__(self, metrics) -> None:
+        self.seq_metrics = self.get_metrics(metrics, 'Seqeval')
+        self.skl_metrics = self.get_metrics(metrics, 'Sklearn')
+        self.seq_results, self.seq_report, self.seq_output = self.generate_results(self.seq_metrics)
+        self.skl_results, self.skl_report, self.skl_output = self.generate_results(self.skl_metrics)
+
+    def get_metrics(self, metrics, mode):
+        return metrics[mode]
+
+    def clean_report(self, report):
+        return report[report['Tag'] != 'accuracy']
+
+    def convert_dict(self, dictionary):
+        result = {}
+        for k, v in dictionary.items():
+            result[k] = [round(v, 4)]
+        return result
+
+    def slice_dictionary(self, dictionary):
+        keys_for_slicing = ["Precision", "Recall", "F1", "Loss"]
+        sliced_dict = {key: dictionary[key] for key in keys_for_slicing}
+        return sliced_dict
+
+    def generate_results(self, metrics):
+        report = self.clean_report(metrics['classification'])
+        output = metrics['output']
+        results = pd.DataFrame.from_dict(self.convert_dict(self.slice_dictionary(metrics)))
+        return results, report, output
 
 
 
