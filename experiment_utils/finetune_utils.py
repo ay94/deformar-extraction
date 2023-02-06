@@ -7,8 +7,8 @@ from torch.optim import AdamW
 from tqdm.notebook import tqdm
 from arabert.preprocess import ArabertPreprocessor
 from transformers import AutoTokenizer, AutoModel, get_linear_schedule_with_warmup
-from seqeval.metrics import accuracy_score as seq_accuracy, f1_score as seq_f1, precision_score as seq_precision, recall_score as seq_recall, classification_report as seq_classification
-from sklearn.metrics import accuracy_score as skl_accuracy, f1_score as skl_f1, precision_score as skl_precision, recall_score as skl_recall, classification_report as skl_classification
+from seqeval.metrics import f1_score as seq_f1, precision_score as seq_precision, recall_score as seq_recall, classification_report as seq_classification
+from sklearn.metrics import f1_score as skl_f1, precision_score as skl_precision, recall_score as skl_recall, classification_report as skl_classification
 
 def current_milli_time():
     return int(round(time.time() * 1000))
