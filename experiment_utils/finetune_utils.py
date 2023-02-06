@@ -3,7 +3,9 @@ import torch
 import numpy as np
 import pandas as pd
 from torch import nn
+from torch.optim import AdamW
 from tqdm.notebook import tqdm
+from arabert.preprocess import ArabertPreprocessor
 from transformers import AutoTokenizer, AutoModel, get_linear_schedule_with_warmup
 from seqeval.metrics import accuracy_score as seq_accuracy, f1_score as seq_f1, precision_score as seq_precision, recall_score as seq_recall, classification_report as seq_classification
 from sklearn.metrics import accuracy_score as skl_accuracy, f1_score as skl_f1, precision_score as skl_precision, recall_score as skl_recall, classification_report as skl_classification
@@ -371,3 +373,115 @@ class SaveOutputs:
         print('Compute Test Metrics')
         self.test_metrics = Metrics(self.test_metrics)
 
+
+class Trainer:
+    def __init__(self, corpora, data_name, model_path, tokenizer_path, preprocessor_path) -> None:
+        self.data_name = data_name
+        self.config = FineTuneConfig()
+        self.model_path = model_path
+        self.tokenizer_path = tokenizer_path
+        self.preprocessor_path = preprocessor_path
+        self.device = self.load_device()
+        self.data = corpora[self.data_name]
+        self.num_tags = len(self.data['labels'])
+        self.TOKENIZER, self.PREPROCESSOR = self.load_tokenizer()
+        self.train_dataset, self.train_dataloader = self.load_data('train')
+        self.val_dataset, self.val_dataloader = self.load_data('val')
+        self.test_dataset, self.test_dataloader = self.load_data('test')
+
+        self.model = self.load_model()
+        self.fine_tune = FineTuneUtils()
+
+    def load_data(self, mode):
+        data_size = 10
+        dataset = TCDataset(
+            texts=[x[0] for x in self.data[mode][:]],
+            tags=[x[1] for x in self.data[mode][:]],
+            label_list=self.data['labels'],
+            config=self.config,
+            tokenizer=self.TOKENIZER,
+            preprocessor=self.PREPROCESSOR)
+
+        data_laoder = torch.utils.data.DataLoader(
+            dataset=dataset,
+            # if the mode is train return the TRAIN_BATCH_SIZE else return VALID_BATCH_SIZE
+            batch_size=self.config.TRAIN_BATCH_SIZE if mode == 'train' else self.config.VALID_BATCH_SIZE,
+            num_workers=2)
+
+        return dataset, data_laoder
+
+    def load_device(self):
+        use_cuda = torch.cuda.is_available()
+        return torch.device("cuda:0" if use_cuda else "cpu")
+
+    def load_tokenizer(self):
+        if self.preprocessor_path != None:
+            print(f'Loading Preprocessor {self.preprocessor_path}')
+            PREPROCESSOR = ArabertPreprocessor(self.preprocessor_path)
+        else:
+            PREPROCESSOR = None
+        print(f'Loading Tokenizer {self.tokenizer_path}')
+        TOKENIZER = AutoTokenizer.from_pretrained(self.tokenizer_path)
+
+        return TOKENIZER, PREPROCESSOR
+
+    def load_model(self):
+        model = TCModel(self.num_tags, self.model_path)
+        model.to(self.device)
+        print('MODEL LOADED!')
+        param_optimizer = list(model.named_parameters())
+        no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
+        optimizer_parameters = [
+            {
+                "params": [
+                    p for n, p in param_optimizer if not any(nd in n for nd in no_decay)
+                ],
+                "weight_decay": 0.01,
+            },
+            {
+                "params": [
+                    p for n, p in param_optimizer if any(nd in n for nd in no_decay)
+                ],
+                "weight_decay": 0.0,
+            },
+        ]
+        num_train_steps = int(len(self.train_dataset) / self.config.TRAIN_BATCH_SIZE * self.config.EPOCHS)
+        print('Number of training steps: ', num_train_steps)
+        self.optimizer = AdamW(optimizer_parameters, lr=self.config.LEARNING_RATE)
+        self.scheduler = get_linear_schedule_with_warmup(
+            self.optimizer, num_warmup_steps=int(self.config.WARMUP_RATIO * num_train_steps),
+            num_training_steps=num_train_steps)
+        return model
+
+    def train(self):
+        training_loss = self.fine_tune.train_fn(self.train_dataloader, self.model, self.optimizer, self.device,
+                                                self.scheduler, self.config)
+        return training_loss
+
+    def evaluate(self, dataloader, flag=False):
+        eval_metrics, eval_loss = self.fine_tune.eval_fn(dataloader, self.model, self.device, self.data['inv_labels'])
+        return eval_metrics, eval_loss
+
+    def training_loop(self):
+        for epoch in range(self.config.EPOCHS):
+            print()
+            print(f'Start Training Epoch:{epoch}')
+            print()
+            start_time = current_milli_time()
+            training_loss = self.train()
+            print()
+            print('Start Train Evaluation')
+            train_metrics, train_loss = self.evaluate(self.train_dataloader, epoch)
+            print('Start Val Evaluation')
+            val_metrics, val_loss = self.evaluate(self.val_dataloader, epoch)
+            print('Start Test Evaluation')
+            test_metrics, test_loss = self.evaluate(self.test_dataloader, epoch)
+            print(test_metrics['Seqeval']['classification'])
+            print(test_metrics['Sklearn']['classification'])
+
+            print(
+                f"Training Loss = {training_loss}  Train Loss = {train_loss} Val Loss = {val_loss} Test Loss = {test_loss} ")
+            end_time = current_milli_time()
+            print(f"End Training Time: {round((end_time - start_time) / 60000, 3)} ms")
+        return SaveOutputs(self.data, self.config, self.train_dataloader, self.val_dataloader, self.test_dataloader,
+                           train_metrics, val_metrics, test_metrics)
