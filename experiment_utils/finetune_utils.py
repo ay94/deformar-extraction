@@ -3,6 +3,7 @@ import torch
 import numpy as np
 import pandas as pd
 from torch import nn
+from tqdm.notebook import tqdm
 from transformers import AutoTokenizer, AutoModel, get_linear_schedule_with_warmup
 from seqeval.metrics import accuracy_score as seq_accuracy, f1_score as seq_f1, precision_score as seq_precision, recall_score as seq_recall, classification_report as seq_classification
 from sklearn.metrics import accuracy_score as skl_accuracy, f1_score as skl_f1, precision_score as skl_precision, recall_score as skl_recall, classification_report as skl_classification
@@ -349,4 +350,24 @@ class Metrics:
         return results, report, output
 
 
+class SaveOutputs:
+    def __init__(self, data, config, train_dataloader, val_dataloader, test_dataloader, train_metrics, val_metrics,
+                 test_metrics) -> None:
+        self.data = data
+        self.config = config
+        self.train_dataloader = train_dataloader
+        self.val_dataloader = val_dataloader
+        self.test_dataloader = test_dataloader
+        self.train_metrics = train_metrics
+        self.val_metrics = val_metrics
+        self.test_metrics = test_metrics
+        self.compute_metrics()
+
+    def compute_metrics(self):
+        print('Compute Train Metrics')
+        self.train_metrics = Metrics(self.train_metrics)
+        print('Compute Val Metrics')
+        self.val_metrics = Metrics(self.val_metrics)
+        print('Compute Test Metrics')
+        self.test_metrics = Metrics(self.test_metrics)
 
