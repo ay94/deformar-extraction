@@ -8,7 +8,6 @@ class FileHandler():
     def create_filename(self, file_name):
         return f'{self.project_folder}/{file_name}'
 
-
     def cr_fn(self, file_name):
         return self.create_filename(file_name)
 
@@ -30,6 +29,7 @@ class FileHandler():
                   sentence.append(splits[0])
                   label.append(splits[1])
         return data
+
     def load_corpora(self, data_names, data_modes):
         corpora = dict()
         for name in data_names:
