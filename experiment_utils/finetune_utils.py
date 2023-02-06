@@ -395,8 +395,8 @@ class Trainer:
     def load_data(self, mode):
         data_size = 10
         dataset = TCDataset(
-            texts=[x[0] for x in self.data[mode][:]],
-            tags=[x[1] for x in self.data[mode][:]],
+            texts=[x[0] for x in self.data[mode][:data_size]],
+            tags=[x[1] for x in self.data[mode][:data_size]],
             label_list=self.data['labels'],
             config=self.config,
             tokenizer=self.TOKENIZER,
