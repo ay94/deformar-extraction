@@ -1,6 +1,7 @@
 import time
 import torch
 from torch import nn
+from transformers import AutoTokenizer, AutoModel, get_linear_schedule_with_warmup
 
 def current_milli_time():
     return int(round(time.time() * 1000))
@@ -164,6 +165,44 @@ class WordPieceDataset:
         # Length information
         self.sentence_len = len(self.words)
         self.wordpieces_len = len(self.tokens)
+
+
+class SCModel(nn.Module):
+    def __init__(self, num_tag, path):
+        super(SCModel, self).__init__()
+        self.num_tag = num_tag
+        print(f'Loading BERT Model: {path}')
+        self.bert = AutoModel.from_pretrained(path, output_attentions=True, output_hidden_states=True)
+        self.bert_drop = nn.Dropout(0.3)
+        self.output_layer = nn.Linear(self.bert.config.hidden_size, self.num_tag)
+
+    def loss_fn(self, output, target, mask, num_labels):
+        # loss function that returns the mean
+        lfn = nn.CrossEntropyLoss()
+        # loss function that returns the losss fore each sample
+        lfns = nn.CrossEntropyLoss(reduction='none')
+        # mask to specify the active losses (sentence boundary) based on attention mask
+        active_loss = mask.view(-1) == 1
+        # this reshape the output dimension from torch.Size([16, 256, 9]) to torch.Size([4096, 9]) now the inner dimensionality match
+        active_logits = output.view(-1, num_labels)
+        #  the where function takes tensor of condition, tensor of x and tensor of y if the condition is true the value of x will be used in the output tensor if the condition is flase the value of y will be used
+        active_labels = torch.where(
+            active_loss,
+            target.view(-1),
+            torch.tensor(lfn.ignore_index).type_as(target))
+        # average_loss
+        loss = lfn(active_logits, active_labels)
+        # sample loss
+        losses = lfns(active_logits, active_labels)
+        return loss, losses
+
+    def forward(self, input_ids, attention_mask, token_type_ids, labels, words_ids, sentence_num):
+        output = self.bert(input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)
+        bert_out = self.bert_drop(output['last_hidden_state'])
+        logits = self.output_layer(bert_out)
+        average_loss, losses = self.loss_fn(logits, labels, attention_mask, self.num_tag)
+        return {'average_loss': average_loss, 'losses': losses, 'logits': logits,
+                'hidden_states': output['last_hidden_state']}
 
 
 
