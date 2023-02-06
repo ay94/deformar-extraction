@@ -1,3 +1,6 @@
+import time
+def current_milli_time():
+    return int(round(time.time() * 1000))
 class FineTuneConfig:
   def __init__(self) -> None:
       self.MAX_SEQ_LEN = 256
