@@ -167,9 +167,9 @@ class WordPieceDataset:
         self.wordpieces_len = len(self.tokens)
 
 
-class SCModel(nn.Module):
+class TCModel(nn.Module):
     def __init__(self, num_tag, path):
-        super(SCModel, self).__init__()
+        super(TCModel, self).__init__()
         self.num_tag = num_tag
         print(f'Loading BERT Model: {path}')
         self.bert = AutoModel.from_pretrained(path, output_attentions=True, output_hidden_states=True)
