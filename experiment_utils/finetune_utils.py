@@ -26,7 +26,7 @@ class FineTuneConfig:
       self.ACCUMULATION_STEPS = 1
 
 
-class TCDataset:
+class SCDataset:
     def __init__(self, texts, tags, label_list, config, tokenizer, preprocessor=None):
         self.texts = texts
         self.tags = tags
@@ -174,7 +174,7 @@ class WordPieceDataset:
         self.wordpieces_len = len(self.tokens)
 
 
-class TCModel(nn.Module):
+class SCModel(nn.Module):
     def __init__(self, num_tag, path):
         super(TCModel, self).__init__()
         self.num_tag = num_tag
