@@ -176,7 +176,7 @@ class WordPieceDataset:
 
 class SCModel(nn.Module):
     def __init__(self, num_tag, path):
-        super(TCModel, self).__init__()
+        super(SCModel, self).__init__()
         self.num_tag = num_tag
         print(f'Loading BERT Model: {path}')
         self.bert = AutoModel.from_pretrained(path, output_attentions=True, output_hidden_states=True)
@@ -394,7 +394,7 @@ class Trainer:
 
     def load_data(self, mode):
         data_size = 10
-        dataset = TCDataset(
+        dataset = SCDataset(
             texts=[x[0] for x in self.data[mode][:]],
             tags=[x[1] for x in self.data[mode][:]],
             label_list=self.data['labels'],
@@ -426,7 +426,7 @@ class Trainer:
         return TOKENIZER, PREPROCESSOR
 
     def load_model(self):
-        model = TCModel(self.num_tags, self.model_path)
+        model = SCModel(self.num_tags, self.model_path)
         model.to(self.device)
         print('MODEL LOADED!')
         param_optimizer = list(model.named_parameters())
