@@ -428,7 +428,7 @@ class Trainer:
         return TOKENIZER, PREPROCESSOR
 
     def load_model(self):
-        model = SCModel(self.num_tags, self.model_path)
+        model = TCModel(self.num_tags, self.model_path)
         model.to(self.device)
         print('MODEL LOADED!')
         param_optimizer = list(model.named_parameters())
