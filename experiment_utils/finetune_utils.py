@@ -26,7 +26,7 @@ class FineTuneConfig:
       self.ACCUMULATION_STEPS = 1
 
 
-class SCDataset:
+class TCDataset:
     def __init__(self, texts, tags, label_list, config, tokenizer, preprocessor=None):
         self.texts = texts
         self.tags = tags
@@ -113,6 +113,8 @@ class SCDataset:
         }
 
 
+
+
 class WordPieceDataset:
     def __init__(self, texts, tags, config, tokenizer, preprocessor=None):
         self.texts = texts
@@ -174,9 +176,9 @@ class WordPieceDataset:
         self.wordpieces_len = len(self.tokens)
 
 
-class SCModel(nn.Module):
+class TCModel(nn.Module):
     def __init__(self, num_tag, path):
-        super(SCModel, self).__init__()
+        super(TCModel, self).__init__()
         self.num_tag = num_tag
         print(f'Loading BERT Model: {path}')
         self.bert = AutoModel.from_pretrained(path, output_attentions=True, output_hidden_states=True)
@@ -394,7 +396,7 @@ class Trainer:
 
     def load_data(self, mode):
         data_size = 10
-        dataset = SCDataset(
+        dataset = TCDataset(
             texts=[x[0] for x in self.data[mode][:]],
             tags=[x[1] for x in self.data[mode][:]],
             label_list=self.data['labels'],
