@@ -95,9 +95,7 @@ class GenerateSplitOutputs:
                 # get the unique values to extract sentence_number
                 sentence_num = torch.unique(sentence_nums[sentence_nums != -100]).tolist()[0]
                 # get labels that belong to the sentence get the indices of labels that are not ignored convert them to list then get the unique labels to idenity the number of unique values in tensor which gives the numebr of labels in the sentence
-                # num_of_labels = len(set(labels[:sentence_len][labels[:sentence_len] != -100].tolist()))
                 num_of_labels = len(torch.unique(labels[labels != -100]))
-                # if True:
                 # mask indices that are ignored
                 label_mask = labels[:sentence_len] != -100
                 # apply the mask to keep the actual labels only and remove the ignored ones
@@ -118,12 +116,6 @@ class GenerateSplitOutputs:
                     self.compute_label_score(considered_labels, silhouette_sample)
                     self.errors.append((batch_num, sentence_num, num_of_labels))
                     self.sentence_samples[sentence_num] = [0] * len(considered_labels)
-                # else:
-                #   print('I cant be here')
-                #   sentence_score.append(silhouette_score(outputs[:sentence_len].detach().cpu().numpy(), labels[:sentence_len].detach().cpu().numpy()))
-                #   silhouette_sample = silhouette_samples(outputs[:sentence_len].detach().cpu().numpy(), labels[:sentence_len].detach().cpu().numpy())
-                #   self.compute_label_score(ignore_labels, silhouette_sample)
-                #   self.sentence_samples[sentence_num].extend(silhouette_sample)
             self.scores.extend(sentence_score)
 
     def compute_label_score(self, considered_labels, silhouette_sample):
@@ -155,14 +147,11 @@ class GenerateSplitOutputs:
 
 class GenerateSplitBathces:
     def __init__(self, results, model, data_loader) -> None:
-        self.results = results
-        self.data = results.data
-        self.config = results.config
         self.model = model
         self.data_loader = data_loader
         self.device = self.load_device()
-        batches = self.eval_fn(self.data_loader, self.model, self.device, self.data['inv_labels'])
-        self.compute_outputs(self.detache_batches(batches))
+        batches = self.eval_fn(self.data_loader, self.model, self.device)
+        self.compute_outputs(self.detache_batches(batches), results)
 
     def detache_batches(self, batches):
         for i in range(len(batches)):
@@ -174,11 +163,9 @@ class GenerateSplitBathces:
         use_cuda = torch.cuda.is_available()
         return torch.device("cuda:0" if use_cuda else "cpu")
 
-    def eval_fn(self, data_loader, model, device, inv_labels):
+    def eval_fn(self, data_loader, model, device):
         model.eval()
         with torch.no_grad():
-            preds = None
-            labels = None
             batches = []
             for data in tqdm(data_loader, total=len(data_loader)):
                 for k, v in data.items():
@@ -191,9 +178,9 @@ class GenerateSplitBathces:
                                  'logits': outputs['logits'], 'hidden_states': outputs['hidden_states']}))
         return batches
 
-    def compute_outputs(self, batches):
+    def compute_outputs(self, batches, results):
         print('Compute Outputs')
-        self.outputs = GenerateSplitOutputs(batches, self.data, self.config)
+        self.outputs = GenerateSplitOutputs(batches, results.data, results.config)
 
 
 class GenerateSplitTokenizationOutputs:
