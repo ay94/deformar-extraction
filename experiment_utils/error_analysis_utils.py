@@ -220,3 +220,96 @@ class GenerateSplitTokenizationOutputs:
             self.sentence_len.append(wordpiece_data.sentence_len)
             self.wordpieces_len.append(wordpiece_data.wordpieces_len)
 
+
+class BatchOutputs:
+    def __init__(self, outputs, model) -> None:
+        self.generate_batches(outputs, model)
+
+    def generate_batches(self, outputs, model):
+        print('Generate Training Batches')
+        self.train_batches = GenerateSplitBathces(outputs, model, outputs.train_dataloader)
+        print('Generate Validation Batches')
+        self.val_batches = GenerateSplitBathces(outputs, model, outputs.val_dataloader)
+        print('Generate Test Batches')
+        self.test_batches = GenerateSplitBathces(outputs, model, outputs.test_dataloader)
+
+
+class ModelOutputs:
+    def __init__(self, batches) -> None:
+        self.generate_outputs(batches)
+
+    def generate_outputs(self, batches):
+        print('Generate Training Outputs')
+        batches.train_batches.outputs.generate_split_outputs()
+        self.train_outputs = batches.train_batches.outputs
+        print('Generate Validation Outputs')
+        batches.val_batches.outputs.generate_split_outputs()
+        self.val_outputs = batches.val_batches.outputs
+        print('Generate Test Outputs')
+        batches.test_batches.outputs.generate_split_outputs()
+        self.test_outputs = batches.test_batches.outputs
+
+
+class TokenizationOutputs:
+    def __init__(self, outputs, tokenizer_path, preprocessor_path=None) -> None:
+
+        self.tokenizer_path = tokenizer_path
+        self.preprocessor_path = preprocessor_path
+        TOKENIZER, PREPROCESSOR = self.load_tokenizer()
+        # subword sentence locations and wh at tag they had in each sentence
+        self.generate_wordpieces(outputs, TOKENIZER, PREPROCESSOR)
+
+    def load_tokenizer(self):
+        if self.preprocessor_path != None:
+            print(f'Loading Preprocessor {self.preprocessor_path}')
+            PREPROCESSOR = ArabertPreprocessor(self.preprocessor_path)
+        else:
+            PREPROCESSOR = None
+        print(f'Loading Tokenizer {self.tokenizer_path}')
+        TOKENIZER = AutoTokenizer.from_pretrained(self.tokenizer_path)
+        return TOKENIZER, PREPROCESSOR
+
+    def load_wordpieces(self, outputs, mode, tokenizer, preprocessor):
+        wordpices = WordPieceDataset(
+            texts=[x[0] for x in outputs.data[mode]],
+            tags=[x[1] for x in outputs.data[mode]],
+            config=outputs.config,
+            tokenizer=tokenizer,
+            preprocessor=preprocessor)
+        return wordpices
+
+    def get_subwords(self, wordpieces):
+        subwords = defaultdict(list)
+        for i in tqdm(range(wordpieces.__len__())):
+            wordpieces.__getitem__(i)
+            for w, t in zip(wordpieces.first_tokens, wordpieces.labels):
+                subwords[w].append({'tag': t, 'sentence': i})
+        return subwords
+
+    def generate_wordpieces(self, outputs, tokenizer, preporcessor):
+        train_wordpieces = self.load_wordpieces(outputs, 'train', tokenizer, preporcessor)
+        val_wordpieces = self.load_wordpieces(outputs, 'val', tokenizer, preporcessor)
+        test_wordpieces = self.load_wordpieces(outputs, 'test', tokenizer, preporcessor)
+
+        self.generate_tokenization_output(train_wordpieces, val_wordpieces, test_wordpieces)
+        self.get_subword_locations(train_wordpieces, val_wordpieces, test_wordpieces)
+
+    def get_subword_locations(self, train_wordpieces, val_wordpieces, test_wordpieces):
+        print('Generate Training Subwords Locations')
+        self.train_subwords = self.get_subwords(train_wordpieces)
+        print('Generate Validation Subwords Locations')
+        self.val_subwords = self.get_subwords(val_wordpieces)
+        print('Generate Test Subwords Locations')
+        self.test_subwords = self.get_subwords(test_wordpieces)
+
+    def generate_tokenization_output(self, train_wordpieces, val_wordpieces, test_wordpieces):
+        print('Generate Training Tokenization Outputs')
+        self.train_tokenizatin_output = GenerateSplitTokenizationOutputs(train_wordpieces)
+        print('Generate Validation Tokenization Outputs')
+        self.val_tokenizatin_output = GenerateSplitTokenizationOutputs(val_wordpieces)
+        print('Generate Test Tokenization Outputs')
+        self.test_tokenizatin_output = GenerateSplitTokenizationOutputs(test_wordpieces)
+
+
+
+
