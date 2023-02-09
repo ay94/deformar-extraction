@@ -127,11 +127,7 @@ class GenerateSplitOutputs:
             # for each label assign the samples score that belong to that label
             self.label_score[lb].extend(silhouette_sample[label_indices])
 
-    def detache_batches(self, batches):
-        for i in range(len(batches)):
-            for k, v in batches[i].items():
-                batches[i][k] = v.numpy()
-        return batches
+
 
     def generate_split_outputs(self, batches):
         self.compute_silhouette(batches)
