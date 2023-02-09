@@ -2,6 +2,7 @@ import torch
 import numpy as np
 from tqdm.notebook import tqdm
 from collections import defaultdict
+from transformers import AutoTokenizer
 from arabert.preprocess import ArabertPreprocessor
 from sklearn.metrics import silhouette_samples, silhouette_score
 
@@ -68,9 +69,8 @@ class WordPieceDataset:
 
 
 class GenerateSplitOutputs:
-    def __init__(self, batches, data, config) -> None:
-        # self.batches = batches
-        self.config = config
+    def __init__(self, batches, data) -> None:
+
         self.data_labels = data['labels']
         self.label_map = {label: i for i, label in enumerate(self.data_labels)}
         # silhouette score for each sentence
@@ -86,7 +86,7 @@ class GenerateSplitOutputs:
 
     def compute_silhouette(self, batcehs):
         #  loop through each batch
-        for batch_num, batch in tqdm(enumerate(selfbatches)):
+        for batch_num, batch in tqdm(enumerate(batcehs)):
             # for each batch give me the sentence
             sentence_score = []
             for labels, sentence_nums, outputs, input_ids in zip(batch['labels'], batch['sentence_num'],
@@ -135,7 +135,6 @@ class GenerateSplitOutputs:
     def generate_split_outputs(self, batches):
         self.compute_silhouette(batches)
         self.align_loss_input_ids(batches)
-        # self.batches = self.detache_batches(self.batches)
 
     def align_loss_input_ids(self, batches):
         # for each batch take the unique indices and get the losses
@@ -228,13 +227,13 @@ class ModelOutputs:
 
     def generate_outputs(self, batches):
         print('Generate Training Outputs')
-        batches.train_batches.outputs.generate_split_outputs()
+        batches.train_batches.outputs.generate_split_outputs(batches.train_batches)
         self.train_outputs = batches.train_batches.outputs
         print('Generate Validation Outputs')
-        batches.val_batches.outputs.generate_split_outputs()
+        batches.val_batches.outputs.generate_split_outputs(batches.val_batches)
         self.val_outputs = batches.val_batches.outputs
         print('Generate Test Outputs')
-        batches.test_batches.outputs.generate_split_outputs()
+        batches.test_batches.outputs.generate_split_outputs(batches.test_batches)
         self.test_outputs = batches.test_batches.outputs
 
 
