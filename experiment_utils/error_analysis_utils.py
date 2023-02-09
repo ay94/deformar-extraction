@@ -1,0 +1,222 @@
+import torch
+import numpy as np
+from tqdm.notebook import tqdm
+from collections import defaultdict
+from sklearn.metrics import silhouette_samples, silhouette_score
+
+
+class WordPieceDataset:
+    def __init__(self, texts, tags, config, tokenizer, preprocessor=None):
+        self.texts = texts
+        self.tags = tags
+        self.config = config
+        self.PREPROCESSOR = preprocessor
+        self.TOKENIZER = tokenizer
+
+    def __len__(self):
+        return len(self.texts)
+
+    def __getitem__(self, item):
+        textlist = self.texts[item]
+        tags = self.tags[item]
+        self.first_tokens = []
+        self.sentence_ind = []
+        self.wordpieces = []
+        self.words = []
+        self.labels = []
+        self.tokens = []
+        self.sentence_len = 0
+        self.wordpieces_len = 0
+        for word, label in zip(textlist, tags):
+            if self.PREPROCESSOR != None:
+                clean_word = self.PREPROCESSOR.preprocess(word)
+                word_tokens = self.TOKENIZER.tokenize(clean_word)
+            else:
+                word_tokens = self.TOKENIZER.tokenize(word)
+            if len(word_tokens) > 0:
+                self.first_tokens.append(word_tokens[0])
+                self.sentence_ind.append(item)
+                self.tokens.extend(word_tokens)
+                self.wordpieces.append(word_tokens)
+                self.words.append(word)
+                self.labels.append(label)
+                # Account for [CLS] and [SEP] with "- 2" and with "- 3" for RoBERTa.
+        special_tokens_count = self.TOKENIZER.num_special_tokens_to_add()
+        if len(self.first_tokens) > self.config.MAX_SEQ_LEN - special_tokens_count:
+            self.first_tokens = self.first_tokens[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
+            self.sentence_ind = self.sentence_ind[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
+            self.wordpieces = self.wordpieces[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
+            self.words = self.words[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
+            self.labels = self.labels[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
+
+        # Add the [SEP] token
+        self.first_tokens += [self.TOKENIZER.sep_token]
+        self.sentence_ind += [self.TOKENIZER.sep_token]
+        self.wordpieces += [self.TOKENIZER.sep_token]
+        self.labels += [self.TOKENIZER.sep_token]
+        self.tokens += [self.TOKENIZER.sep_token]
+        # Add the [CLS] TOKEN
+        self.first_tokens = [self.TOKENIZER.cls_token] + self.first_tokens
+        self.sentence_ind = [self.TOKENIZER.cls_token] + self.sentence_ind
+        self.wordpieces = [self.TOKENIZER.cls_token] + self.wordpieces
+        self.labels = [self.TOKENIZER.cls_token] + self.labels
+        self.tokens = [self.TOKENIZER.cls_token] + self.tokens
+        # Length information
+        self.sentence_len = len(self.words)
+        self.wordpieces_len = len(self.tokens)
+
+
+class GenerateSplitOutputs:
+    def __init__(self, batches, data, config) -> None:
+        self.batches = batches
+        self.config = config
+        self.data_labels = data['labels']
+        self.label_map = {label: i for i, label in enumerate(self.data_labels)}
+        # silhouette score for each sentence
+        self.scores = []
+        # sentences failed to be scored
+        self.errors = []
+        # loss for each instance
+        self.aligned_losses = []
+        # score for each label
+        self.label_score = defaultdict(list)
+        # silhouette score for each word in the sentence
+        self.sentence_samples = defaultdict(list)
+
+    def compute_silhouette(self):
+        #  loop through each batch
+        for batch_num, batch in tqdm(enumerate(self.batches)):
+            # for each batch give me the sentence
+            sentence_score = []
+            for labels, sentence_nums, outputs, input_ids in zip(batch['labels'], batch['sentence_num'],
+                                                                 batch['hidden_states'], batch['input_ids']):
+                # input ids identify the tokens included in the sentence it is used to compute sentence length 0 means padding nonzero means token/subtoken
+                sentence_len = input_ids.nonzero().shape[0]
+                # get the unique values to extract sentence_number
+                sentence_num = torch.unique(sentence_nums[sentence_nums != -100]).tolist()[0]
+                # get labels that belong to the sentence get the indices of labels that are not ignored convert them to list then get the unique labels to idenity the number of unique values in tensor which gives the numebr of labels in the sentence
+                # num_of_labels = len(set(labels[:sentence_len][labels[:sentence_len] != -100].tolist()))
+                num_of_labels = len(torch.unique(labels[labels != -100]))
+                # if True:
+                # mask indices that are ignored
+                label_mask = labels[:sentence_len] != -100
+                # apply the mask to keep the actual labels only and remove the ignored ones
+                considered_labels = labels[:sentence_len][label_mask]
+                try:
+                    # compute the average silhouette score for all tokens
+                    sentence_score.append(silhouette_score(outputs[:sentence_len][label_mask].detach().cpu().numpy(),
+                                                           considered_labels.detach().cpu().numpy()))
+                    # compute sample silhouette score for each token
+                    silhouette_sample = silhouette_samples(outputs[:sentence_len][label_mask].detach().cpu().numpy(),
+                                                           considered_labels.detach().cpu().numpy())
+                    self.compute_label_score(considered_labels, silhouette_sample)
+                    self.sentence_samples[sentence_num].extend(silhouette_sample)
+
+                except:
+                    sentence_score.append(0)
+                    silhouette_sample = np.array([0] * len(considered_labels))
+                    self.compute_label_score(considered_labels, silhouette_sample)
+                    self.errors.append((batch_num, sentence_num, num_of_labels))
+                    self.sentence_samples[sentence_num] = [0] * len(considered_labels)
+                # else:
+                #   print('I cant be here')
+                #   sentence_score.append(silhouette_score(outputs[:sentence_len].detach().cpu().numpy(), labels[:sentence_len].detach().cpu().numpy()))
+                #   silhouette_sample = silhouette_samples(outputs[:sentence_len].detach().cpu().numpy(), labels[:sentence_len].detach().cpu().numpy())
+                #   self.compute_label_score(ignore_labels, silhouette_sample)
+                #   self.sentence_samples[sentence_num].extend(silhouette_sample)
+            self.scores.extend(sentence_score)
+
+    def compute_label_score(self, considered_labels, silhouette_sample):
+        for lb in self.data_labels:
+            # identify the indices of the samples that has silhouette score
+            label_indices = considered_labels.detach().cpu().numpy() == self.label_map[lb]
+            # for each label assign the samples score that belong to that label
+            self.label_score[lb].extend(silhouette_sample[label_indices])
+
+    def detache_batches(self, batches):
+        for i in range(len(batches)):
+            for k, v in batches[i].items():
+                batches[i][k] = v.numpy()
+        return batches
+
+    def generate_split_outputs(self):
+        self.compute_silhouette()
+        self.align_loss_input_ids()
+        self.batches = self.detache_batches(self.batches)
+
+    def align_loss_input_ids(self):
+        # for each batch take the unique indices and get the losses
+        for batch in self.batches:
+            # return tensor of unique values and tensor of indices the tensor of indices contains the location of the unique element in the unique list this location in itself is not necessary but we use it to mask the right loss boundaries
+            unique_values, indices = torch.unique(batch['input_ids'], return_inverse=True)
+            # mask the losses with the indices because 0 index here is only refering to the first element of the unique index which is zero
+            self.aligned_losses.append(batch['losses'][indices.view(-1) != 0])
+
+
+class GenerateSplitBathces:
+    def __init__(self, results, model, data_loader) -> None:
+        self.results = results
+        self.data = results.data
+        self.config = results.config
+        self.model = model
+        self.data_loader = data_loader
+        self.device = self.load_device()
+        batches = self.eval_fn(self.data_loader, self.model, self.device, self.data['inv_labels'])
+        self.compute_outputs(self.detache_batches(batches))
+
+    def detache_batches(self, batches):
+        for i in range(len(batches)):
+            for k, v in batches[i].items():
+                batches[i][k] = v.detach().cpu()
+        return batches
+
+    def load_device(self):
+        use_cuda = torch.cuda.is_available()
+        return torch.device("cuda:0" if use_cuda else "cpu")
+
+    def eval_fn(self, data_loader, model, device, inv_labels):
+        model.eval()
+        with torch.no_grad():
+            preds = None
+            labels = None
+            batches = []
+            for data in tqdm(data_loader, total=len(data_loader)):
+                for k, v in data.items():
+                    data[k] = v.to(device)
+
+                outputs = model(**data)
+                batches.append(({'labels': data['labels'], 'words_ids': data['words_ids'],
+                                 'sentence_num': data['sentence_num'], 'attention_mask': data['attention_mask'],
+                                 'input_ids': data['input_ids'], 'losses': outputs['losses'],
+                                 'logits': outputs['logits'], 'hidden_states': outputs['hidden_states']}))
+        return batches
+
+    def compute_outputs(self, batches):
+        print('Compute Outputs')
+        self.outputs = GenerateSplitOutputs(batches, self.data, self.config)
+
+
+class GenerateSplitTokenizationOutputs:
+    def __init__(self, wordpiece_data) -> None:
+        self.first_tokens = []
+        self.sentence_ind = []
+        self.tokens = []
+        self.wordpieces = []
+        self.words = []
+        self.labels = []
+        self.sentence_len = []
+        self.wordpieces_len = []
+        self.get_wordpiece_data(wordpiece_data)
+
+    def get_wordpiece_data(self, wordpiece_data):
+        for i in tqdm(range(wordpiece_data.__len__())):
+            wordpiece_data.__getitem__(i)
+            self.first_tokens.append(wordpiece_data.first_tokens)
+            self.sentence_ind.append(wordpiece_data.sentence_ind)
+            self.tokens.append(wordpiece_data.tokens)
+            self.wordpieces.append(wordpiece_data.wordpieces)
+            self.words.append(wordpiece_data.words)
+            self.labels.append(wordpiece_data.labels)
+            self.sentence_len.append(wordpiece_data.sentence_len)
+            self.wordpieces_len.append(wordpiece_data.wordpieces_len)
+
