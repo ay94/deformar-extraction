@@ -228,13 +228,10 @@ class ModelOutputs:
 
     def generate_outputs(self, batches):
         print('Generate Training Outputs')
-        batches.train_batches.outputs.generate_split_outputs(batches.train_batches)
         self.train_outputs = batches.train_batches.outputs
         print('Generate Validation Outputs')
-        batches.val_batches.outputs.generate_split_outputs(batches.val_batches)
         self.val_outputs = batches.val_batches.outputs
         print('Generate Test Outputs')
-        batches.test_batches.outputs.generate_split_outputs(batches.test_batches)
         self.test_outputs = batches.test_batches.outputs
 
 
