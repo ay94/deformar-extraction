@@ -201,7 +201,7 @@ class TCModel(nn.Module):
             torch.tensor(lfn.ignore_index).type_as(target))
         # average_loss
         loss = lfn(active_logits, active_labels)
-        # sample loss
+        # words loss
         losses = lfns(active_logits, active_labels)
         return loss, losses
 
