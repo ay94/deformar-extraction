@@ -69,9 +69,9 @@ class WordPieceDataset:
 
 
 class GenerateSplitOutputs:
-    def __init__(self, batches, data) -> None:
+    def __init__(self, batches, labels) -> None:
 
-        self.data_labels = data['labels']
+        self.data_labels = labels
         self.label_map = {label: i for i, label in enumerate(self.data_labels)}
         # silhouette score for each sentence
         self.scores = []
@@ -83,6 +83,7 @@ class GenerateSplitOutputs:
         self.label_score = defaultdict(list)
         # silhouette score for each word in the sentence
         self.sentence_samples = defaultdict(list)
+        self.generate_split_outputs(batches)
 
     def compute_silhouette(self, batcehs):
         #  loop through each batch
@@ -180,7 +181,7 @@ class GenerateSplitBathces:
 
     def compute_outputs(self, results):
         print('Compute Outputs')
-        self.outputs = GenerateSplitOutputs(self.batches, results.data, results.config)
+        self.outputs = GenerateSplitOutputs(self.batches, results.data['labels'])
 
 
 class GenerateSplitTokenizationOutputs:
