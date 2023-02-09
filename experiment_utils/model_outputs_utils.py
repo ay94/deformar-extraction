@@ -2,6 +2,7 @@ import torch
 import numpy as np
 from tqdm.notebook import tqdm
 from collections import defaultdict
+from arabert.preprocess import ArabertPreprocessor
 from sklearn.metrics import silhouette_samples, silhouette_score
 
 
@@ -68,7 +69,7 @@ class WordPieceDataset:
 
 class GenerateSplitOutputs:
     def __init__(self, batches, data, config) -> None:
-        self.batches = batches
+        # self.batches = batches
         self.config = config
         self.data_labels = data['labels']
         self.label_map = {label: i for i, label in enumerate(self.data_labels)}
@@ -83,9 +84,9 @@ class GenerateSplitOutputs:
         # silhouette score for each word in the sentence
         self.sentence_samples = defaultdict(list)
 
-    def compute_silhouette(self):
+    def compute_silhouette(self, batcehs):
         #  loop through each batch
-        for batch_num, batch in tqdm(enumerate(self.batches)):
+        for batch_num, batch in tqdm(enumerate(selfbatches)):
             # for each batch give me the sentence
             sentence_score = []
             for labels, sentence_nums, outputs, input_ids in zip(batch['labels'], batch['sentence_num'],
@@ -131,14 +132,14 @@ class GenerateSplitOutputs:
                 batches[i][k] = v.numpy()
         return batches
 
-    def generate_split_outputs(self):
-        self.compute_silhouette()
-        self.align_loss_input_ids()
-        self.batches = self.detache_batches(self.batches)
+    def generate_split_outputs(self, batches):
+        self.compute_silhouette(batches)
+        self.align_loss_input_ids(batches)
+        # self.batches = self.detache_batches(self.batches)
 
-    def align_loss_input_ids(self):
+    def align_loss_input_ids(self, batches):
         # for each batch take the unique indices and get the losses
-        for batch in self.batches:
+        for batch in batches:
             # return tensor of unique values and tensor of indices the tensor of indices contains the location of the unique element in the unique list this location in itself is not necessary but we use it to mask the right loss boundaries
             unique_values, indices = torch.unique(batch['input_ids'], return_inverse=True)
             # mask the losses with the indices because 0 index here is only refering to the first element of the unique index which is zero
@@ -150,8 +151,8 @@ class GenerateSplitBathces:
         self.model = model
         self.data_loader = data_loader
         self.device = self.load_device()
-        batches = self.eval_fn(self.data_loader, self.model, self.device)
-        self.compute_outputs(self.detache_batches(batches), results)
+        self.batches = self.eval_fn(self.data_loader, self.model, self.device)
+        self.compute_outputs(self.detache_batches(self.batches), results)
 
     def detache_batches(self, batches):
         for i in range(len(batches)):
@@ -178,9 +179,9 @@ class GenerateSplitBathces:
                                  'logits': outputs['logits'], 'hidden_states': outputs['hidden_states']}))
         return batches
 
-    def compute_outputs(self, batches, results):
+    def compute_outputs(self, results):
         print('Compute Outputs')
-        self.outputs = GenerateSplitOutputs(batches, results.data, results.config)
+        self.outputs = GenerateSplitOutputs(self.batches, results.data, results.config)
 
 
 class GenerateSplitTokenizationOutputs:
