@@ -151,8 +151,8 @@ class GenerateSplitBathces:
         self.model = model
         self.data_loader = data_loader
         self.device = self.load_device()
-        self.batches = self.eval_fn(self.data_loader, self.model, self.device)
-        self.compute_outputs(self.detache_batches(self.batches), results)
+        self.batches = self.detache_batches(self.eval_fn(self.data_loader, self.model, self.device))
+        self.compute_outputs(results)
 
     def detache_batches(self, batches):
         for i in range(len(batches)):
