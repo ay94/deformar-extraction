@@ -29,6 +29,7 @@ class WordPieceDataset:
         self.tokens = []
         self.sentence_len = 0
         self.wordpieces_len = 0
+        self.removed_words = []
         for word, label in zip(textlist, tags):
             if self.PREPROCESSOR != None:
                 clean_word = self.PREPROCESSOR.preprocess(word)
@@ -42,7 +43,9 @@ class WordPieceDataset:
                 self.wordpieces.append(word_tokens)
                 self.words.append(word)
                 self.labels.append(label)
-                # Account for [CLS] and [SEP] with "- 2" and with "- 3" for RoBERTa.
+            else:
+                self.removed_words.append((item, word))
+        # Account for [CLS] and [SEP] with "- 2" and with "- 3" for RoBERTa.
         special_tokens_count = self.TOKENIZER.num_special_tokens_to_add()
         if len(self.first_tokens) > self.config.MAX_SEQ_LEN - special_tokens_count:
             self.first_tokens = self.first_tokens[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
