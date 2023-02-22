@@ -419,8 +419,9 @@ class Trainer:
             val_metrics, val_loss = self.evaluate(self.val_dataloader, epoch)
             print('Start Test Evaluation')
             test_metrics, test_loss = self.evaluate(self.test_dataloader, epoch)
-            print(test_metrics['Seqeval']['classification'])
-            print(test_metrics['Sklearn']['classification'])
+            # https://towardsdatascience.com/pandas-python-tricks-for-data-science-data-analysis-part-3-462d0e952925
+            print(test_metrics['Seqeval']['classification'].to_markdown(tablefmt='grid'))
+            print(test_metrics['Sklearn']['classification'].to_markdown(tablefmt='grid'))
 
             print(
                 f"Training Loss = {training_loss}  Train Loss = {train_loss} Val Loss = {val_loss} Test Loss = {test_loss} ")
