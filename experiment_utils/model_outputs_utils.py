@@ -37,12 +37,12 @@ class WordPieceDataset:
             else:
                 word_tokens = self.TOKENIZER.tokenize(word)
             if len(word_tokens) > 0:
-                self.first_tokens.append(word_tokens[0])
-                self.sentence_ind.append(item)
+                self.first_tokens.extend([word_tokens[i] if i==0 else 'IGNORED' for i, w in enumerate(word_tokens)])
+                self.sentence_ind.extend([item for i in range(len(word_tokens))])
                 self.tokens.extend(word_tokens)
-                self.wordpieces.append(word_tokens)
-                self.words.append(word)
-                self.labels.append(label)
+                self.wordpieces.extend([word_tokens for i in range(len(word_tokens))])
+                self.words.extend([word for i in range(len(word_tokens))])
+                self.labels.extend([label if i==0 else 'IGNORED' for i, w in enumerate(word_tokens)])
             else:
                 self.removed_words.append((item, word))
         # Account for [CLS] and [SEP] with "- 2" and with "- 3" for RoBERTa.
@@ -263,6 +263,7 @@ class TokenizationOutputs:
         subwords = defaultdict(list)
         for i in tqdm(range(wordpieces.__len__())):
             wordpieces.__getitem__(i)
+            # pdb.set_trace()
             for w, t in zip(wordpieces.first_tokens, wordpieces.labels):
                 subwords[w].append({'tag': t, 'sentence': i})
         return subwords
