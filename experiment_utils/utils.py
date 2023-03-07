@@ -2,10 +2,12 @@ import json
 import torch
 import pickle as pkl
 from collections import Counter
+from sklearn.model_selection import train_test_split
 
 
 class GenerateData:
     def __init__(self, fh, dataset, path) -> None:
+        self.fh = fh
         self.dataset = dataset
         self.path = path
         print('GENERATE ANERCorp_CamelLab')
@@ -14,12 +16,12 @@ class GenerateData:
         self.conll2003 = self.generate_conll2003()
         self.corpora = {'ANERCorp_CamelLab': self.ANERCorp_CamelLab, 'conll2003': self.conll2003}
 
-    def read_split(self, path, split):
+    def read_split(self, split):
         words = []
         tags = []
         sentences = []
         print(f'Generating {split} Split')
-        with open(fh.cr_fn(f'{self.path}_{split}.txt'), 'r', encoding='utf-8') as f:
+        with open(self.fh.cr_fn(f'{self.path}_{split}.txt'), 'r', encoding='utf-8') as f:
             for line in f:
                 parts = line.strip().split(' ')
                 if line != '\n':
@@ -38,9 +40,9 @@ class GenerateData:
         ner_map = {'O': 0, 'B-PERS': 1, 'I-PER': 2, 'B-ORG': 3, 'I-ORG': 4, 'B-LOC': 5, 'I-LOC': 6, 'B-MISC': 7,
                    'I-MISC': 8}
         ner_inv_map = {v: k for k, v in ner_map.items()}
-        tr_dt = self.read_split(self.path, 'train')
+        tr_dt = self.read_split('train')
         tr, vl = train_test_split(tr_dt, test_size=0.18, random_state=100)
-        te = self.read_split(self.path, 'test')
+        te = self.read_split('test')
         train = [(id, sen[0], sen[1]) for id, sen in enumerate(tr)]
         val = [(id, sen[0], sen[1]) for id, sen in enumerate(vl)]
         test = [(id, sen[0], sen[1]) for id, sen in enumerate(te)]
