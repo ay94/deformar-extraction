@@ -80,8 +80,8 @@ class FileHandler():
         return self.create_filename(file_name)
 
 
-    def load_corpora(self, data_names, data_modes):
-        corpora = GenerateData(fh, conll2003_dataset, 'ANERcorp-CamelLabSplits/ANERCorp_CamelLab')
+    def load_corpora(self, dataset, path):
+        corpora = GenerateData(self, dataset, 'ANERcorp-CamelLabSplits/ANERCorp_CamelLab')
         return corpora.corpora
 
     # def load_data(self, path):
