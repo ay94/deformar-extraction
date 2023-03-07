@@ -55,7 +55,7 @@ class GenerateData:
         data_split = dataset[split]
         print(f'Generating {split} Split')
         for i in tqdm(range(len(data_split))):
-            id = data_split.__getitem__(i)['id']
+            id = int(data_split.__getitem__(i)['id')]
             tokens = data_split.__getitem__(i)['tokens']
             tags = [ner_iv_map[tid] for tid in data_split.__getitem__(i)['ner_tags']]
             sentences.append((id, tokens, tags))
