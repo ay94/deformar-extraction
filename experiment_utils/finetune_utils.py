@@ -338,8 +338,8 @@ class Trainer:
     def load_data(self, mode):
         data_size = 10
         dataset = TCDataset(
-            texts=[x[0] for x in self.data[mode][:]],
-            tags=[x[1] for x in self.data[mode][:]],
+            texts=[x[1] for x in self.data[mode][:]],
+            tags=[x[2] for x in self.data[mode][:]],
             label_list=self.data['labels'],
             config=self.config,
             tokenizer=self.TOKENIZER,
