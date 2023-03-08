@@ -25,6 +25,7 @@ class WordPieceDataset:
         self.sentence_ind = []
         self.wordpieces = []
         self.words = []
+        self.word_ids = []
         self.labels = []
         self.first_tokens_df = []
         self.sentence_ind_df = []
