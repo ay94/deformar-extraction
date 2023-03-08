@@ -136,11 +136,11 @@ class GenerateSplitOutputs:
                     self.sentence_samples[sentence_num].extend(silhouette_sample)
 
                 except:
-                    sentence_score.append(0)
-                    silhouette_sample = np.array([0] * len(considered_labels))
+                    sentence_score.append(-100)
+                    silhouette_sample = np.array([-100] * len(considered_labels))
                     self.compute_label_score(considered_labels, silhouette_sample)
                     self.errors.append((batch_num, sentence_num, num_of_labels))
-                    self.sentence_samples[sentence_num] = [0] * len(considered_labels)
+                    self.sentence_samples[sentence_num] = [-100] * len(considered_labels)
             self.scores.extend(sentence_score)
 
     def compute_label_score(self, considered_labels, silhouette_sample):
