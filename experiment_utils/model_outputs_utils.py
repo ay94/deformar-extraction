@@ -26,6 +26,11 @@ class WordPieceDataset:
         self.wordpieces = []
         self.words = []
         self.labels = []
+        self.first_tokens_df = []
+        self.sentence_ind_df = []
+        self.wordpieces_df = []
+        self.words_df = []
+        self.labels_df = []
         self.tokens = []
         self.sentence_len = 0
         self.wordpieces_len = 0
@@ -37,35 +42,43 @@ class WordPieceDataset:
             else:
                 word_tokens = self.TOKENIZER.tokenize(word)
             if len(word_tokens) > 0:
-                self.first_tokens.extend([word_tokens[i] if i==0 else 'IGNORED' for i, w in enumerate(word_tokens)])
-                self.sentence_ind.extend([item for i in range(len(word_tokens))])
+                self.first_tokens.append(word_tokens[0])
+                self.sentence_ind.append(item)
+                self.wordpieces.append(word_tokens)
+                self.words.append(word)
+                self.labels.append(label)
+                self.first_tokens_df.extend(
+                    [word_tokens[i] if i == 0 else 'IGNORED' for i, w in enumerate(word_tokens)])
+                self.sentence_ind_df.extend([item for i in range(len(word_tokens))])
                 self.tokens.extend(word_tokens)
-                self.wordpieces.extend([word_tokens for i in range(len(word_tokens))])
-                self.words.extend([word for i in range(len(word_tokens))])
-                self.labels.extend([label if i==0 else 'IGNORED' for i, w in enumerate(word_tokens)])
+                self.wordpieces_df.extend([word_tokens for i in range(len(word_tokens))])
+                self.words_df.extend([word for i in range(len(word_tokens))])
+                self.labels_df.extend([label if i == 0 else 'IGNORED' for i, w in enumerate(word_tokens)])
             else:
                 self.removed_words.append((item, word))
         # Account for [CLS] and [SEP] with "- 2" and with "- 3" for RoBERTa.
         special_tokens_count = self.TOKENIZER.num_special_tokens_to_add()
-        if len(self.first_tokens) > self.config.MAX_SEQ_LEN - special_tokens_count:
-            self.first_tokens = self.first_tokens[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
-            self.sentence_ind = self.sentence_ind[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
-            self.wordpieces = self.wordpieces[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
-            self.words = self.words[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
-            self.labels = self.labels[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
+        if len(self.tokens) > self.config.MAX_SEQ_LEN - special_tokens_count:
+            self.first_tokens_df = self.first_tokens_df[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
+            self.sentence_ind_df = self.sentence_ind_df[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
+            self.wordpieces_df = self.wordpieces_df[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
+            self.words_df = self.words_df[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
+            self.labels_df = self.labels_df[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
 
         # Add the [SEP] token
-        self.first_tokens += [self.TOKENIZER.sep_token]
-        self.sentence_ind += [self.TOKENIZER.sep_token]
-        self.wordpieces += [self.TOKENIZER.sep_token]
-        self.labels += [self.TOKENIZER.sep_token]
+        self.first_tokens_df += [self.TOKENIZER.sep_token]
+        self.sentence_ind_df += [self.TOKENIZER.sep_token]
+        self.wordpieces_df += [self.TOKENIZER.sep_token]
+        self.words_df += [self.TOKENIZER.sep_token]
         self.tokens += [self.TOKENIZER.sep_token]
+        self.labels_df += [self.TOKENIZER.sep_token]
         # Add the [CLS] TOKEN
-        self.first_tokens = [self.TOKENIZER.cls_token] + self.first_tokens
-        self.sentence_ind = [self.TOKENIZER.cls_token] + self.sentence_ind
-        self.wordpieces = [self.TOKENIZER.cls_token] + self.wordpieces
-        self.labels = [self.TOKENIZER.cls_token] + self.labels
+        self.first_tokens_df = [self.TOKENIZER.cls_token] + self.first_tokens_df
+        self.sentence_ind_df = [self.TOKENIZER.cls_token] + self.sentence_ind_df
+        self.wordpieces_df = [self.TOKENIZER.cls_token] + self.wordpieces_df
+        self.words_df = [self.TOKENIZER.cls_token] + self.words_df
         self.tokens = [self.TOKENIZER.cls_token] + self.tokens
+        self.labels_df = [self.TOKENIZER.cls_token] + self.labels_df
         # Length information
         self.sentence_len = len(self.words)
         self.wordpieces_len = len(self.tokens)
@@ -130,8 +143,6 @@ class GenerateSplitOutputs:
             # for each label assign the samples score that belong to that label
             self.label_score[lb].extend(silhouette_sample[label_indices])
 
-
-
     def generate_split_outputs(self, batches):
         self.compute_silhouette(batches)
         self.align_loss_input_ids(batches)
@@ -185,6 +196,14 @@ class GenerateSplitBathces:
 
 class GenerateSplitTokenizationOutputs:
     def __init__(self, wordpiece_data) -> None:
+        self.first_tokens_df = []
+        self.sentence_ind_df = []
+        self.wordpieces_df = []
+        self.words_df = []
+        self.labels_df = []
+        self.sentence_len = []
+        self.wordpieces_len = []
+
         self.first_tokens = []
         self.sentence_ind = []
         self.tokens = []
@@ -198,14 +217,21 @@ class GenerateSplitTokenizationOutputs:
     def get_wordpiece_data(self, wordpiece_data):
         for i in tqdm(range(wordpiece_data.__len__())):
             wordpiece_data.__getitem__(i)
+            self.first_tokens_df.append(wordpiece_data.first_tokens_df)
+            self.sentence_ind_df.append(wordpiece_data.sentence_ind_df)
+            self.tokens.append(wordpiece_data.tokens)
+            self.wordpieces_df.append(wordpiece_data.wordpieces_df)
+            self.words_df.append(wordpiece_data.words_df)
+            self.labels_df.append(wordpiece_data.labels_df)
+            self.sentence_len.append(wordpiece_data.sentence_len)
+            self.wordpieces_len.append(wordpiece_data.wordpieces_len)
+
             self.first_tokens.append(wordpiece_data.first_tokens)
             self.sentence_ind.append(wordpiece_data.sentence_ind)
             self.tokens.append(wordpiece_data.tokens)
             self.wordpieces.append(wordpiece_data.wordpieces)
             self.words.append(wordpiece_data.words)
             self.labels.append(wordpiece_data.labels)
-            self.sentence_len.append(wordpiece_data.sentence_len)
-            self.wordpieces_len.append(wordpiece_data.wordpieces_len)
 
 
 class BatchOutputs:
@@ -252,8 +278,8 @@ class TokenizationOutputs:
 
     def load_wordpieces(self, outputs, mode, tokenizer, preprocessor):
         wordpices = WordPieceDataset(
-            texts=[x[0] for x in outputs.data[mode]],
-            tags=[x[1] for x in outputs.data[mode]],
+            texts=[x[1] for x in outputs.data[mode]],
+            tags=[x[2] for x in outputs.data[mode]],
             config=outputs.config,
             tokenizer=tokenizer,
             preprocessor=preprocessor)
@@ -263,7 +289,6 @@ class TokenizationOutputs:
         subwords = defaultdict(list)
         for i in tqdm(range(wordpieces.__len__())):
             wordpieces.__getitem__(i)
-            # pdb.set_trace()
             for w, t in zip(wordpieces.first_tokens, wordpieces.labels):
                 subwords[w].append({'tag': t, 'sentence': i})
         return subwords
@@ -291,7 +316,3 @@ class TokenizationOutputs:
         self.val_tokenizatin_output = GenerateSplitTokenizationOutputs(val_wordpieces)
         print('Generate Test Tokenization Outputs')
         self.test_tokenizatin_output = GenerateSplitTokenizationOutputs(test_wordpieces)
-
-
-
-
