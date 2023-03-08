@@ -35,7 +35,7 @@ class WordPieceDataset:
         self.sentence_len = 0
         self.wordpieces_len = 0
         self.removed_words = []
-        for word, label in zip(textlist, tags):
+        for word_id, (word, label) in enumerate(zip(textlist, tags)):
             if self.PREPROCESSOR != None:
                 clean_word = self.PREPROCESSOR.preprocess(word)
                 word_tokens = self.TOKENIZER.tokenize(clean_word)
@@ -46,6 +46,7 @@ class WordPieceDataset:
                 self.sentence_ind.append(item)
                 self.wordpieces.append(word_tokens)
                 self.words.append(word)
+                self.word_ids.append(word_id)
                 self.labels.append(label)
                 self.first_tokens_df.extend(
                     [word_tokens[i] if i == 0 else 'IGNORED' for i, w in enumerate(word_tokens)])
@@ -53,6 +54,7 @@ class WordPieceDataset:
                 self.tokens.extend(word_tokens)
                 self.wordpieces_df.extend([word_tokens for i in range(len(word_tokens))])
                 self.words_df.extend([word for i in range(len(word_tokens))])
+                self.word_ids_df.extend([word_id for i in range(len(word_tokens))])
                 self.labels_df.extend([label if i == 0 else 'IGNORED' for i, w in enumerate(word_tokens)])
             else:
                 self.removed_words.append((item, word))
@@ -63,6 +65,7 @@ class WordPieceDataset:
             self.sentence_ind_df = self.sentence_ind_df[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
             self.wordpieces_df = self.wordpieces_df[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
             self.words_df = self.words_df[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
+            self.word_ids_df = self.word_ids_df[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
             self.labels_df = self.labels_df[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
 
         # Add the [SEP] token
@@ -70,6 +73,7 @@ class WordPieceDataset:
         self.sentence_ind_df += [self.TOKENIZER.sep_token]
         self.wordpieces_df += [self.TOKENIZER.sep_token]
         self.words_df += [self.TOKENIZER.sep_token]
+        self.word_ids_df += [self.TOKENIZER.sep_token]
         self.tokens += [self.TOKENIZER.sep_token]
         self.labels_df += [self.TOKENIZER.sep_token]
         # Add the [CLS] TOKEN
@@ -77,6 +81,7 @@ class WordPieceDataset:
         self.sentence_ind_df = [self.TOKENIZER.cls_token] + self.sentence_ind_df
         self.wordpieces_df = [self.TOKENIZER.cls_token] + self.wordpieces_df
         self.words_df = [self.TOKENIZER.cls_token] + self.words_df
+        self.word_ids_df = [self.TOKENIZER.cls_token] + self.word_ids_df
         self.tokens = [self.TOKENIZER.cls_token] + self.tokens
         self.labels_df = [self.TOKENIZER.cls_token] + self.labels_df
         # Length information
