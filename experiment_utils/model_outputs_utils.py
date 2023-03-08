@@ -207,6 +207,7 @@ class GenerateSplitTokenizationOutputs:
         self.sentence_ind_df = []
         self.wordpieces_df = []
         self.words_df = []
+        self.word_ids_df = []
         self.labels_df = []
         self.sentence_len = []
         self.wordpieces_len = []
@@ -216,6 +217,7 @@ class GenerateSplitTokenizationOutputs:
         self.tokens = []
         self.wordpieces = []
         self.words = []
+        self.word_ids = []
         self.labels = []
         self.sentence_len = []
         self.wordpieces_len = []
@@ -229,6 +231,7 @@ class GenerateSplitTokenizationOutputs:
             self.tokens.append(wordpiece_data.tokens)
             self.wordpieces_df.append(wordpiece_data.wordpieces_df)
             self.words_df.append(wordpiece_data.words_df)
+            self.word_ids_df.append(wordpiece_data.word_ids_df)
             self.labels_df.append(wordpiece_data.labels_df)
             self.sentence_len.append(wordpiece_data.sentence_len)
             self.wordpieces_len.append(wordpiece_data.wordpieces_len)
@@ -238,6 +241,7 @@ class GenerateSplitTokenizationOutputs:
             self.tokens.append(wordpiece_data.tokens)
             self.wordpieces.append(wordpiece_data.wordpieces)
             self.words.append(wordpiece_data.words)
+            self.word_ids.append(wordpiece_data.word_ids)
             self.labels.append(wordpiece_data.labels)
 
 
