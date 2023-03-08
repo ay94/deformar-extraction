@@ -38,7 +38,7 @@ class GenerateData:
         return sentences
 
     def read_text(self):
-        ner_map = {'O': 0, 'B-PERS': 1, 'I-PER': 2, 'B-ORG': 3, 'I-ORG': 4, 'B-LOC': 5, 'I-LOC': 6, 'B-MISC': 7,
+        ner_map = {'O': 0, 'B-PERS': 1, 'I-PERS': 2, 'B-ORG': 3, 'I-ORG': 4, 'B-LOC': 5, 'I-LOC': 6, 'B-MISC': 7,
                    'I-MISC': 8}
         ner_inv_map = {v: k for k, v in ner_map.items()}
         tr_dt = self.read_split('train')
