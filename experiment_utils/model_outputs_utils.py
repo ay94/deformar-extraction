@@ -240,7 +240,6 @@ class GenerateSplitTokenizationOutputs:
 
             self.first_tokens.append(wordpiece_data.first_tokens)
             self.sentence_ind.append(wordpiece_data.sentence_ind)
-            self.tokens.append(wordpiece_data.tokens)
             self.wordpieces.append(wordpiece_data.wordpieces)
             self.words.append(wordpiece_data.words)
             self.word_ids.append(wordpiece_data.word_ids)
