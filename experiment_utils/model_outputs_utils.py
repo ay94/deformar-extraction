@@ -1,5 +1,7 @@
 import torch
 import numpy as np
+import pandas as pd
+from umap import UMAP
 from tqdm.notebook import tqdm
 from collections import defaultdict
 from transformers import AutoTokenizer
@@ -327,3 +329,69 @@ class TokenizationOutputs:
         self.val_tokenizatin_output = GenerateSplitTokenizationOutputs(val_wordpieces)
         print('Generate Test Tokenization Outputs')
         self.test_tokenizatin_output = GenerateSplitTokenizationOutputs(test_wordpieces)
+
+
+class ModelResults:
+    def __init__(self, outputs) -> None:
+        self.generate_results(outputs)
+
+    def generate_results(self, outputs):
+        self.train_metrics = outputs.train_metrics
+        self.val_metrics = outputs.val_metrics
+        self.test_metrics = outputs.test_metrics
+
+
+class ReduceBatches:
+    def __init__(self, file_handler, batch_output):
+        self.file_handler = file_handler
+        self.train_batches = batch_output.train_batches.batches
+        self.val_batches = batch_output.val_batches.batches
+        self.test_batches = batch_output.test_batches.batches
+        self.save_batches()
+
+    def reduce_split_batches(self, batches):
+        flat_list = torch.cat([hidden_state[ids != 0] for batch in batches for ids, hidden_state in
+                               zip(batch['input_ids'], batch['hidden_states'])])
+        layer_reduced = UMAP(verbose=True, random_state=1).fit_transform(flat_list).transpose()
+        ids = [(batch_id, sen_id, w_id, int(w)) for batch_id, batch in enumerate(batches) for sen_id, ids in
+               enumerate(batch['input_ids']) for w_id, w in enumerate(ids[ids != 0])]
+        df = pd.DataFrame(ids, columns=['batch_id', 'sen_id', 'word_id', 'token_id'])
+        df['x'] = layer_reduced[0]
+        df['y'] = layer_reduced[1]
+        return df
+
+    def reduce_batches(self):
+        self.tr_df = self.reduce_split_batches(self.train_batches)
+        self.vl_df = self.reduce_split_batches(self.val_batches)
+        self.te_df = self.reduce_split_batches(self.test_batches)
+
+    def save_batches(self):
+        self.reduce_batches()
+        self.tr_df.to_csv(self.file_handler.cr_fn('umap_train_batches.csv'), index=False)
+        self.tr_df.to_json(
+            self.file_handler.cr_fn('umap_train_batches.jsonl.gz'),
+            lines=True, orient='records'
+        )
+        self.vl_df.to_csv(self.file_handler.cr_fn('umap_val_batches.csv'), index=False)
+        self.vl_df.to_json(
+            self.file_handler.cr_fn('umap_val_batches.jsonl.gz'),
+            lines=True, orient='records'
+        )
+        self.te_df.to_csv(self.file_handler.cr_fn('umap_test_batches.csv'), index=False)
+        self.te_df.to_json(
+            self.file_handler.cr_fn('umap_test_batches.jsonl.gz'),
+            lines=True, orient='records'
+        )
+
+
+class SaveModelOutputs:
+    def __init__(self, fh, data_name, model_name, outputs, tokenization, results):
+        self.outputs = outputs
+        self.tokenization = tokenization
+        self.results = results
+        fh.save_object(outputs, f'modelOutputs/{data_name}_{model_name}_model_outputs.pkl')
+        fh.save_object(tokenization, f'modelOutputs/{data_name}_{model_name}_tokenization_outputs.pkl')
+        fh.save_object(results, f'modelOutputs/{data_name}_{model_name}_model_results.pkl')
+
+
+
