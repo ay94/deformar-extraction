@@ -65,6 +65,7 @@ class WordPieceDataset:
         # Account for [CLS] and [SEP] with "- 2" and with "- 3" for RoBERTa.
         special_tokens_count = self.TOKENIZER.num_special_tokens_to_add()
         if len(self.tokens) > self.config.MAX_SEQ_LEN - special_tokens_count:
+            self.tokens = self.tokens[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
             self.first_tokens_df = self.first_tokens_df[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
             self.sentence_ind_df = self.sentence_ind_df[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
             self.wordpieces_df = self.wordpieces_df[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
