@@ -286,7 +286,7 @@ class TokenizationOutputs:
         else:
             PREPROCESSOR = None
         print(f'Loading Tokenizer {self.tokenizer_path}')
-        TOKENIZER = AutoTokenizer.from_pretrained(self.tokenizer_path)
+        TOKENIZER = AutoTokenizer.from_pretrained(self.tokenizer_path, do_lower_case=False)
         return TOKENIZER, PREPROCESSOR
 
     def load_wordpieces(self, outputs, mode, tokenizer, preprocessor):
