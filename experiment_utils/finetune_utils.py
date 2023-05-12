@@ -367,7 +367,7 @@ class Trainer:
         if self.tokenizer_path == 'bert-base-multilingual-cased':
             TOKENIZER = AutoTokenizer.from_pretrained(self.tokenizer_path, do_lower_case=False)
         else:
-            TOKENIZER = AutoTokenizer.from_pretrained(self.tokenizer_path)
+            TOKENIZER = AutoTokenizer.from_pretrained(self.tokenizer_path, do_lower_case=False)
 
         return TOKENIZER, PREPROCESSOR
 
