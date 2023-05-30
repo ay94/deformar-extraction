@@ -1026,3 +1026,34 @@ class TrainingImpact:
         change_fig.layout.width = 700
         change_fig.show()
 
+
+class ErrorAnalysis:
+    def __init__(self, dataset_outputs, batches, tokenization_outputs, model_outputs, results, model):
+        self.dataset_outputs = dataset_outputs
+        self.batches = batches
+        self.tokenization_outputs = tokenization_outputs
+        self.model_outputs = model_outputs
+        self.results = results
+        self.model = model
+
+    def val(self, mode, model_path):
+        batches = self.batches.val_batches
+        toks = self.tokenization_outputs.val_tokenizatin_output
+        subwords = self.tokenization_outputs.train_subwords
+        md_out = self.model_outputs.val_outputs
+        res = self.results.val_metrics
+        self.val_dc = DatasetCharacteristics(self.dataset_outputs, batches, toks, subwords, md_out, res)
+        self.val_ent = Entity(self.dataset_outputs.val_metrics.seq_output)
+        self.val_db = DecisionBoundary(batches, self.val_dc.analysis_df, self.dataset_outputs)
+        self.val_tr_im = TrainingImpact(mode, self.dataset_outputs, model_path, self.model.bert)
+
+    def test(self, mode, model_path):
+        batches = self.batches.test_batches
+        toks = self.tokenization_outputs.test_tokenizatin_output
+        subwords = self.tokenization_outputs.train_subwords
+        md_out = self.model_outputs.test_outputs
+        res = self.results.test_metrics
+        self.test_dc = DatasetCharacteristics(self.dataset_outputs, batches, toks, subwords, md_out, res)
+        self.test_ent = Entity(self.dataset_outputs.test_metrics.seq_output)
+        self.test_db = DecisionBoundary(batches, self.test_dc.analysis_df, self.dataset_outputs)
+        self.test_tr_im = TrainingImpact(mode, self.dataset_outputs, model_path, self.model.bert)
