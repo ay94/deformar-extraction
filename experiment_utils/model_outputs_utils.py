@@ -8,6 +8,7 @@ import pandas as pd
 from umap import UMAP
 from tqdm.notebook import tqdm
 from collections import defaultdict, Counter
+from sklearn.cluster import KMeans
 from collections import defaultdict
 from transformers import AutoTokenizer
 from arabert.preprocess import ArabertPreprocessor
@@ -806,6 +807,102 @@ class Entity:
         return entity_prediction
 
 
+class DecisionBoundary:
+    def __init__(self, batches, analysis_df, outputs):
+
+        self.batches = batches.batches
+        self.analysis_df = analysis_df
+        self.entropy_df = self.extract_prediction_entropy(analysis_df, outputs)
+
+    def softmax(self, logits):
+        exp_logits = np.exp(logits)
+        return exp_logits / np.sum(exp_logits, axis=1, keepdims=True)
+
+    def calculate_entropy(self, probabilities):
+        return -np.sum(probabilities * np.log2(probabilities), axis=1)
+
+    def extract_prediction_entropy(self, analysis_df, outputs):
+        token_logits = []
+        for batch in self.batches:
+            unique_values, indices = torch.unique(batch['input_ids'], return_inverse=True)
+            for token in batch['logits'][indices != 0]:
+                token_logits.append(token.tolist())
+
+        logits_matrix = np.array(token_logits)
+        probabilities_matrix = self.softmax(logits_matrix)
+
+        # Calculate entropy for each token
+        prediction_entropy = self.calculate_entropy(probabilities_matrix)
+
+        prediction_confidence = [max(prob_scores) for prob_scores in probabilities_matrix]
+        prediction_variability = [np.std(prob_scores) for prob_scores in probabilities_matrix]
+
+        prediction_probabilities = pd.DataFrame(probabilities_matrix).rename(columns=outputs.data['inv_labels'])
+        prediction_probabilities = prediction_probabilities.reset_index()
+        prediction_probabilities = prediction_probabilities.rename(columns={'index': 'global_id'})
+
+        analysis_df = analysis_df.reset_index()
+        analysis_df = analysis_df.rename(columns={'index': 'global_id'})
+        analysis_df['prediction_entropy'] = prediction_entropy
+        analysis_df['confidences'] = prediction_confidence
+        analysis_df['variability'] = prediction_variability
+        entropy_df = analysis_df.merge(prediction_probabilities, on='global_id')
+        return entropy_df
+
+    def cluster_data(self, k, states):
+        # Define the number of clusters
+        n_clusters = k
+
+        # Create an instance of the KMeans algorithm
+        kmeans = KMeans(n_clusters=n_clusters, n_init=10, random_state=1)
+
+        # Fit the algorithm to the data
+        kmeans.fit(states)
+
+        # Get the cluster assignments for each data point
+        labels = [f'cluster-{lb}' for lb in kmeans.labels_]
+
+        # Get the centroid locations
+        centroids = kmeans.cluster_centers_
+        return centroids, labels
+
+    def annotate_clusters(self, k):
+        flat_states = torch.cat([hidden_state[ids != 0] for batch in self.batches for ids, hidden_state in
+                                 zip(batch['input_ids'], batch['hidden_states'])])
+        self.centroids, labels = self.cluster_data(3, flat_states)
+        self.entropy_df[f'{k}_clusters'] = labels
+        return self.entropy_df
+
+    def generate_centroid_data(self):
+        flat_states = torch.cat([hidden_state[ids != 0] for batch in self.batches for ids, hidden_state in
+                                 zip(batch['input_ids'], batch['hidden_states'])])
+
+        flat_words = list(self.entropy_df['words'].copy())
+        flat_first_tokens = list(self.entropy_df['first_tokens'].copy())
+        flat_trues = list(self.entropy_df['truth'].copy())
+
+        centroid_data = torch.cat([flat_states, torch.from_numpy(self.centroids)])
+        true_lbs = flat_trues.copy()
+        flat_words.extend(['Centroid'] * len(self.centroids))
+        flat_first_tokens.extend(['centroid'] * len(self.centroids))
+        true_lbs.extend(['C'] * len(self.centroids))
+        centroid_reduced = UMAP(verbose=True, random_state=1).fit_transform(centroid_data).transpose()
+        centroid_df = pd.DataFrame(
+            {'words': flat_words, 'first_token': flat_first_tokens, 'labels': true_lbs, 'x': centroid_reduced[0],
+             'y': centroid_reduced[1]})
+        return centroid_df
+
+    def generate_token_score(self):
+        flat_states = torch.cat([hidden_state[ids != 0] for batch in self.batches for ids, hidden_state in
+                                 zip(batch['input_ids'], batch['hidden_states'])])
+        flat_labels = torch.cat([labels[ids != 0] for batch in self.batches for ids, labels in
+                                 zip(batch['input_ids'], batch['labels'])])
+
+        self.overall_score = silhouette_score(flat_states[flat_labels != -100], flat_labels[flat_labels != -100])
+        silhouette_sample = silhouette_samples(flat_states[flat_labels != -100], flat_labels[flat_labels != -100])
+        without_ignore = self.entropy_df[self.entropy_df['label_ids'] != -100].copy()
+        without_ignore['token_score'] = silhouette_sample
+        return without_ignore
 
 
 
