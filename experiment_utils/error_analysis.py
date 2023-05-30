@@ -1,5 +1,7 @@
 import pandas as pd
 import plotly.express as px
+
+
 class TokenAmbiguity:
     def __init__(self, subwords, tokens):
         self.subwords = subwords
@@ -50,4 +52,5 @@ class TokenAmbiguity:
         )
 
         fig.show()
+
 
