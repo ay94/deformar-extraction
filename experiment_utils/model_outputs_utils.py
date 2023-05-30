@@ -6,13 +6,17 @@ import warnings
 import numpy as np
 import pandas as pd
 from umap import UMAP
+import plotly.express as px
 from tqdm.notebook import tqdm
 from collections import defaultdict, Counter
+from scipy.spatial import distance
 from sklearn.cluster import KMeans
 from collections import defaultdict
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, AutoModel
 from arabert.preprocess import ArabertPreprocessor
+
 from sklearn.metrics import silhouette_samples, silhouette_score
+
 
 
 class WordPieceDataset:
@@ -905,5 +909,120 @@ class DecisionBoundary:
         return without_ignore
 
 
+class AttentionSimilarity:
+    def __init__(self, device, model1, model2, tokeniser, preprocessor):
+        self.device = device
+        self.model1 = model1
+        self.model2 = model2
+        self.tokenizer = tokeniser
+        self.preprocessor = preprocessor
 
+    def compute_similarity(self, example):
+        scores = []
+
+        sentence_a = ' '.join(example)
+
+        if self.preprocessor == None:
+            inputs = self.tokenizer.encode_plus(sentence_a, return_tensors='pt', add_special_tokens=True)
+        else:
+            inputs = self.tokenizer.encode_plus(self.preprocessor.preprocess(sentence_a), return_tensors='pt',
+                                                add_special_tokens=True)
+        for k, v in inputs.items():
+            inputs[k] = v.to(self.device)
+
+        input_ids = inputs['input_ids']
+        token_type_ids = inputs['token_type_ids']
+
+        with torch.no_grad():
+
+            outputs = self.model1(**inputs)
+            model1_att = outputs.attentions
+
+        with torch.no_grad():
+            outputs = self.model2(**inputs)
+            model2_att = outputs.attentions
+
+        model1_mat = np.array([atten[0].cpu().numpy() for atten in model1_att])
+        model2_mat = np.array([atten[0].cpu().numpy() for atten in model2_att])
+
+        layer = []
+        head = []
+
+        for i in range(12):
+            for j in range(12):
+                head.append(1 - distance.cosine(
+                    model1_mat[i][j].flatten(),
+                    model2_mat[i][j].flatten()
+                ))
+            layer.append(head)
+            head = []
+        scores.append(layer)
+        return scores[0]
+
+class TrainingImpact:
+    def __init__(self, mode, outputs, model_path, model):
+        self.model_path = model_path
+        self.device = torch.device("cpu")
+        self.data = outputs.data[mode]
+        tokenizer = outputs.test_dataloader.dataset.TOKENIZER
+        preprocessor = outputs.test_dataloader.dataset.PREPROCESSOR
+        self.pretrained_model = AutoModel.from_pretrained(model_path, output_attentions=True,
+                                                          output_hidden_states=True).to(self.device)
+        self.fine_tuned_model = model.to(self.device)
+        self.attention_impact = AttentionSimilarity(self.device,
+                                                    self.pretrained_model,
+                                                    self.fine_tuned_model,
+                                                    tokenizer,
+                                                    preprocessor)
+
+    def compute_attention_similarities(self):
+        similarities = [self.attention_impact.compute_similarity(example[1])[0] for example in tqdm(self.data)]
+        change_fig = px.imshow(np.array(similarities).mean(0),
+                               labels=dict(x="Heads", y="Layers", color="Similarity Score"),
+                               )
+        change_fig.layout.height = 700
+        change_fig.layout.width = 700
+        change_fig.show()
+
+    def compute_example_similarities(self, id):
+        scores = self.attention_impact.compute_similarity(self.data[id][1])
+        change_fig = px.imshow(scores,
+                               labels=dict(x="Heads", y="Layers", color="Similarity Score"),
+                               )
+        change_fig.layout.height = 700
+        change_fig.layout.width = 700
+        change_fig.show()
+
+    def extract_weights(self, layer):
+        self_attention_weights = torch.cat([
+            layer.attention.self.query.weight,
+            layer.attention.self.key.weight,
+            layer.attention.self.value.weight
+        ], dim=0)
+
+        return self_attention_weights
+
+    def compare_weights(self):
+        num_layers = len(self.pretrained_model.encoder.layer)
+        num_heads = self.pretrained_model.config.num_attention_heads
+        weight_diff_matrix = np.zeros((num_layers, num_heads))
+
+        for layer in range(num_layers):
+            for head in range(num_heads):
+                pretrained_weight = self.extract_weights(self.pretrained_model.encoder.layer[layer])[:,
+                                    head::num_heads].detach().cpu().numpy()
+                fine_tuned_weight = self.extract_weights(self.fine_tuned_model.encoder.layer[layer])[:,
+                                    head::num_heads].cpu().detach().cpu().numpy()
+                weight_diff = 1 - distance.cosine(pretrained_weight.flatten(), fine_tuned_weight.flatten())
+                weight_diff_matrix[layer, head] = weight_diff
+
+        self.weight_difference(weight_diff_matrix)
+
+    def weight_difference(self, weight_diff_matrix):
+        change_fig = px.imshow(weight_diff_matrix,
+                               labels=dict(x="Heads", y="Layers", color="Similarity Score"),
+                               )
+        change_fig.layout.height = 700
+        change_fig.layout.width = 700
+        change_fig.show()
 
