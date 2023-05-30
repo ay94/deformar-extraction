@@ -1,8 +1,13 @@
+import ast
+import math
+import copy
 import torch
+import warnings
 import numpy as np
 import pandas as pd
 from umap import UMAP
 from tqdm.notebook import tqdm
+from collections import defaultdict, Counter
 from collections import defaultdict
 from transformers import AutoTokenizer
 from arabert.preprocess import ArabertPreprocessor
@@ -392,6 +397,416 @@ class SaveModelOutputs:
         fh.save_object(outputs, f'modelOutputs/{data_name}_{model_name}_model_outputs.pkl')
         fh.save_object(tokenization, f'modelOutputs/{data_name}_{model_name}_tokenization_outputs.pkl')
         fh.save_object(results, f'modelOutputs/{data_name}_{model_name}_model_results.pkl')
+
+
+class DatasetCharacteristics:
+    def __init__(self, dataset_outputs, batch_outputs, tokenization_outputs, subword_outputs, model_outputs, results):
+        self.dataset_outputs = dataset_outputs
+        self.batches = batch_outputs.batches
+        self.tokenization = tokenization_outputs
+        self.subwords = subword_outputs
+        self.outputs = model_outputs
+
+        self.results = results
+        self.analysis_df = self.create_analysis_df()
+
+    def extract_token_scores(self, sentence_samples, tokenization_output):
+        sentence_scores = []
+        for token_scores, labels in zip(sentence_samples.values(), self.tokenization.labels_df):
+            token_score = []
+            i = 0
+            for lb in labels:
+                if lb in ['[CLS]', 'IGNORED', '[SEP]']:
+                    token_score.append(-100)
+                else:
+                    if i < len(token_scores):
+                        token_score.append(token_scores[i])
+                        i += 1
+            sentence_scores.extend(token_score)
+        return sentence_scores
+
+    def label_alignment(self):
+        map = defaultdict(list)
+        for sen_id, sen in enumerate(self.tokenization.labels_df):
+            for tok_id, tok in enumerate(sen):
+                if tok in ['[CLS]', '[SEP]', 'IGNORED']:
+                    map[sen_id].append((tok_id, tok))
+        return map
+
+    def change_preds(self, pred, pred_map):
+        modified_pred = []
+        for sen_id, sen in enumerate(pred):
+            sentnece = sen.copy()
+            for idx, tok in pred_map[sen_id]:
+                sentnece.insert(idx, tok)
+            modified_pred.append(sentnece)
+        return modified_pred
+
+    def create_analysis_df(self):
+        flat_states = torch.cat([hidden_state[ids != 0] for batch in self.batches for ids, hidden_state in
+                                 zip(batch['input_ids'], batch['hidden_states'])])
+        flat_labels = torch.cat([labels[ids != 0] for batch in self.batches for ids, labels in
+                                 zip(batch['input_ids'], batch['labels'])])
+        flat_losses = torch.cat([losses for losses in
+                                 self.outputs.aligned_losses])
+        flat_scores = self.extract_token_scores(self.outputs.sentence_samples,
+                                                self.tokenization)
+        flat_words = [tok for sen in self.tokenization.words_df for tok in sen]
+        flat_tokens = [tok for sen in self.tokenization.tokens for tok in sen]
+        flat_wordpieces = [str(tok) for sen in self.tokenization.wordpieces_df for tok in sen]
+        flat_first_tokens = [tok for sen in self.tokenization.first_tokens_df for tok in sen]
+        flat_token_ids = [f'{tok}-{id}-{i}' for sen, sen_id in
+                          zip(self.tokenization.first_tokens_df, self.tokenization.sentence_ind_df) for i, (tok, id) in
+                          enumerate(zip(sen, list(set(sen_id[1:-1])) + sen_id[1:-1] + list(set(sen_id[1:-1]))))]
+        flat_trues = [tok for sen in self.tokenization.labels_df for tok in sen]
+
+        pred_map = self.label_alignment()
+
+        modified_preds = self.change_preds(self.results.seq_output['y_pred'].copy(), pred_map)
+        flat_preds = [tok for sen in modified_preds for tok in sen]
+        flat_sen_ids = [tok for sen in self.tokenization.sentence_ind_df for tok in
+                        list(set(sen[1:-1])) + sen[1:-1] + list(set(sen[1:-1]))]
+        flat_agreement = np.array(flat_trues) == np.array(flat_preds)
+
+        t_ids = [int(w) for batch_id, batch in enumerate(self.batches) for sen_id, ids in
+                 enumerate(batch['input_ids']) for w_id, w in enumerate(ids[ids != 0])]
+
+        w_ids = [w_id for batch_id, batch in enumerate(self.batches) for sen_id, ids in
+                 enumerate(batch['input_ids']) for w_id, w in enumerate(ids[ids != 0])]
+
+        layer_reduced = UMAP(verbose=True, random_state=1).fit_transform(flat_states).transpose()
+
+        analysis_df = pd.DataFrame(
+            {'token_id': t_ids, 'word_id': w_ids, 'sen_id': flat_sen_ids, 'token_ids': flat_token_ids,
+             'label_ids': flat_labels.tolist(),
+             'words': flat_words, 'wordpieces': flat_wordpieces, 'tokens': flat_tokens,
+             'first_tokens': flat_first_tokens,
+             'truth': flat_trues, 'pred': flat_preds, 'agreement': flat_agreement,
+             'losses': flat_losses.tolist(), 'sentence_silhouette_scores': flat_scores, 'x': layer_reduced[0],
+             'y': layer_reduced[1]})
+
+        analysis_df = self.annotate_tokenization_rate(analysis_df.copy())
+        analysis_df = self.get_first_tokens(analysis_df, copy.deepcopy(self.subwords))
+        print('Compute Consistency')
+        analysis_df = self.compute_consistency(analysis_df, copy.deepcopy(self.subwords))
+        print('Compute Token Ambiguity')
+        analysis_df['token_entropy'] = self.token_ambiguity(analysis_df.copy())
+        print('Compute Word Ambiguity')
+        analysis_df['word_entropy'] = self.word_ambiguity(analysis_df.copy())
+
+        analysis_df['tr_entity'] = analysis_df['truth'].apply(
+            lambda x: x if x == '[CLS]' or x == 'IGNORED' else x.split('-')[-1])
+        analysis_df['pr_entity'] = analysis_df['pred'].apply(
+            lambda x: x if x == '[CLS]' or x == 'IGNORED' else x.split('-')[-1])
+
+        analysis_df['error_type'] = analysis_df[['truth', 'pred']].apply(self.error_type, axis=1)
+
+        return analysis_df
+
+    def annotate_tokenization_rate(self, analysis_df):
+        num_tokens = []
+        for wps in analysis_df['wordpieces']:
+            try:
+                num_tokens.append(len(ast.literal_eval(wps)))
+            except:
+                num_tokens.append(1)
+        analysis_df['tokenization_rate'] = num_tokens
+        return analysis_df
+
+    def get_first_tokens(self, analysis, subword_locations):
+        fr_tk = []
+        try:
+            analysis.insert(5, 'first_tokens_freq', analysis['first_tokens'].apply(lambda x: len(subword_locations[x])))
+        except:
+            print('')
+        return analysis
+
+    def compute_consistency(self, analysis, subwords_locations):
+        consistent = []
+        inconsistent = []
+        for i in tqdm(range(len(analysis))):
+            con_count = []
+            incon_count = []
+            for t, count in Counter(
+                    [tok['tag'] for tok in subwords_locations[analysis.iloc[i]['first_tokens']]]).items():
+                if t == analysis.iloc[i]['truth']:
+                    con_count.append(count)
+                else:
+                    incon_count.append(count)
+            consistent.append(sum(con_count))
+            inconsistent.append(sum(incon_count))
+            try:
+                analysis.insert(6, 'first_tokens_consistency', consistent)
+                analysis.insert(7, 'first_tokens_inconsistency', inconsistent)
+            except:
+                continue
+        return analysis
+
+    def entropy(self, probabilities):
+        return -sum(p * math.log2(p) for p in probabilities.values())
+
+    def label_probabilities(self, dataset):
+        # Count the frequencies of each label for each token
+        label_counts = {}
+        for token, label in dataset:
+            if token not in label_counts:
+                label_counts[token] = Counter()
+            label_counts[token][label] += 1
+
+        # Calculate the probabilities of each label for each token
+        probabilities = {}
+        for token, counts in label_counts.items():
+            total = sum(counts.values())
+            probabilities[token] = {label: count / total for label, count in counts.items()}
+        return probabilities
+
+    def token_ambiguity(self, analysis_df):
+        subwords_counter = []
+        for subword, tag_dis in tqdm(self.subwords.items()):
+            for tag in tag_dis:
+                subwords_counter.append((subword, tag['tag']))
+        probabilities = self.label_probabilities(subwords_counter)
+        # Calculate the entropy for each token
+        token_entropies = {token: abs(self.entropy(probs)) for token, probs in probabilities.items()}
+        computed_token_entropy = pd.DataFrame(token_entropies.items(), columns=['first_tokens', 'entropy'])
+
+        token_entropy = []
+        for tk in tqdm(analysis_df['first_tokens']):
+            token_data = computed_token_entropy[computed_token_entropy['first_tokens'] == tk]
+            if len(token_data) > 0:
+                token_entropy.append(token_data['entropy'].values[0])
+            else:
+                token_entropy.append(-1)
+        return token_entropy
+
+    def word_ambiguity(self, analysis_df):
+        wordsDict = defaultdict(list)
+        for i, sen in enumerate(self.dataset_outputs.data['train']):
+            for w, t in zip(sen[1], sen[2]):
+                wordsDict[w].append({'tag': t, 'sentence': i})
+
+        words_counter = []
+        for word, tag_dis in tqdm(wordsDict.items()):
+            for tag in tag_dis:
+                words_counter.append((word, tag['tag']))
+
+        probabilities = self.label_probabilities(words_counter)
+        word_entropies = {token: abs(self.entropy(probs)) for token, probs in probabilities.items()}
+        computed_word_entropy = pd.DataFrame(word_entropies.items(), columns=['words', 'entropy'])
+
+        word_entropy = []
+        for tk in tqdm(analysis_df['words']):
+            token_data = computed_word_entropy[computed_word_entropy['words'] == tk]
+            if len(token_data) > 0:
+                word_entropy.append(token_data['entropy'].values[0])
+            else:
+                word_entropy.append(-1)
+        return word_entropy
+
+    def error_type(self, row):
+        true, pred = row['truth'], row['pred']
+
+        # Check if both entity type and boundaries are correct
+        if true == pred:
+            return 'Correct'
+
+        # Check if the entity type is incorrect but the boundaries are correct
+        elif true[1:] != pred[1:]:
+            return 'Entity'
+
+        # If neither of the above conditions are met, the error must be in the boundaries
+        else:
+            return 'Chunk'
+
+
+class Entity:
+    def __init__(self, outputs):
+        self.y_true = outputs['y_true']
+        self.y_pred = outputs['y_pred']
+        true = self.get_entities(self.y_true)
+        pred = self.get_entities(self.y_pred)
+        self.seq_true, self.seq_pred = self.compute_entity_location(true, pred)
+        self.entity_prediction = self.extract_entity_predictions(true, pred)
+
+    def end_of_chunk(self, prev_tag, tag, prev_type, type_):
+        """Checks if a chunk ended between the previous and current word.
+
+        Args:
+            prev_tag: previous chunk tag.
+            tag: current chunk tag.
+            prev_type: previous type.
+            type_: current type.
+
+        Returns:
+            chunk_end: boolean.
+        """
+        chunk_end = False
+
+        if prev_tag == 'E':
+            chunk_end = True
+        if prev_tag == 'S':
+            chunk_end = True
+
+        if prev_tag == 'B' and tag == 'B':
+            chunk_end = True
+        if prev_tag == 'B' and tag == 'S':
+            chunk_end = True
+        if prev_tag == 'B' and tag == 'O':
+            chunk_end = True
+        if prev_tag == 'I' and tag == 'B':
+            chunk_end = True
+        if prev_tag == 'I' and tag == 'S':
+            chunk_end = True
+        if prev_tag == 'I' and tag == 'O':
+            chunk_end = True
+
+        if prev_tag != 'O' and prev_tag != '.' and prev_type != type_:
+            chunk_end = True
+
+        return chunk_end
+
+    def start_of_chunk(self, prev_tag, tag, prev_type, type_):
+        """Checks if a chunk started between the previous and current word.
+
+        Args:
+            prev_tag: previous chunk tag.
+            tag: current chunk tag.
+            prev_type: previous type.
+            type_: current type.
+
+        Returns:
+            chunk_start: boolean.
+        """
+        chunk_start = False
+
+        if tag == 'B':
+            chunk_start = True
+        if tag == 'S':
+            chunk_start = True
+
+        if prev_tag == 'E' and tag == 'E':
+            chunk_start = True
+        if prev_tag == 'E' and tag == 'I':
+            chunk_start = True
+        if prev_tag == 'S' and tag == 'E':
+            chunk_start = True
+        if prev_tag == 'S' and tag == 'I':
+            chunk_start = True
+        if prev_tag == 'O' and tag == 'E':
+            chunk_start = True
+        if prev_tag == 'O' and tag == 'I':
+            chunk_start = True
+
+        if tag != 'O' and tag != '.' and prev_type != type_:
+            chunk_start = True
+
+        return chunk_start
+
+    def get_entities(self, seq, suffix=False):
+        """Gets entities from sequence.
+
+        Args:
+            seq (list): sequence of labels.
+
+        Returns:
+            list: list of (chunk_type, chunk_start, chunk_end).
+
+        Example:
+            >>> from seqeval.metrics.sequence_labeling import get_entities
+            >>> seq = ['B-PER', 'I-PER', 'O', 'B-LOC']
+            >>> get_entities(seq)
+            [('PER', 0, 1), ('LOC', 3, 3)]
+        """
+
+        def _validate_chunk(chunk, suffix):
+            if chunk in ['O', 'B', 'I', 'E', 'S']:
+                return
+
+            if suffix:
+                if not chunk.endswith(('-B', '-I', '-E', '-S')):
+                    warnings.warn('{} seems not to be NE tag.'.format(chunk))
+
+            else:
+                if not chunk.startswith(('B-', 'I-', 'E-', 'S-')):
+                    warnings.warn('{} seems not to be NE tag.'.format(chunk))
+
+        # for nested list
+        if any(isinstance(s, list) for s in seq):
+            seq = [item for sublist in seq for item in sublist + ['O']]
+
+        prev_tag = 'O'
+        prev_type = ''
+        begin_offset = 0
+        chunks = []
+        for i, chunk in enumerate(seq + ['O']):
+            _validate_chunk(chunk, suffix)
+
+            if suffix:
+                tag = chunk[-1]
+                type_ = chunk[:-1].rsplit('-', maxsplit=1)[0] or '_'
+            else:
+                tag = chunk[0]
+                type_ = chunk[1:].split('-', maxsplit=1)[-1] or '_'
+
+            if self.end_of_chunk(prev_tag, tag, prev_type, type_):
+                chunks.append((prev_type, begin_offset, i - 1))
+            if self.start_of_chunk(prev_tag, tag, prev_type, type_):
+                begin_offset = i
+            prev_tag = tag
+            prev_type = type_
+
+        return chunks
+
+    def compute_entity_location(self, true, pred):
+
+        set1 = set(true)
+        set2 = set(pred)
+
+        # Find elements present in list1 but not in list2
+        only_in_set1 = set1 - set2
+
+        # Find elements present in list2 but not in list1
+        only_in_set2 = set2 - set1
+
+        # Add the missing elements to the corresponding lists
+        true.extend([('O',) + t[1:] for t in only_in_set2])
+        pred.extend([('O',) + t[1:] for t in only_in_set1])
+
+        seq_true = [t[0] for t in sorted(true, key=lambda x: x[1:])]
+        seq_pred = [t[0] for t in sorted(pred, key=lambda x: x[1:])]
+        return seq_true, seq_pred
+
+    def extract_tag(self, id, lst):
+        i = 0
+        for j, sen in enumerate(lst):
+            for t in sen:
+                if i + j == id:
+                    return t, j
+                i = i + 1
+
+    def extract_entity_predictions(self, true, pred):
+        aligned_tags = defaultdict(list)
+        used_idices = []
+        for t in true:
+            used_idices.append(t[1:])
+            aligned_tags[t[0]].append(t[1:])
+
+        for t in pred:
+            if t[1:] not in used_idices:
+                aligned_tags[t[0]].append(t[1:])
+
+        entities = []
+        for tag, idxs in aligned_tags.items():
+            for idx in sorted(idxs):
+                for i in range(idx[0], idx[1] + 1):
+                    entities.append((tag, self.extract_tag(i, self.y_true)[0], self.extract_tag(i, self.y_pred)[0], i,
+                                     self.extract_tag(i, self.y_true)[1]))
+        entity_prediction = pd.DataFrame(entities, columns=['entity', 'true_token', 'pred_token', 'token_id', 'sen_id'])
+        entity_prediction['agreement'] = entity_prediction['true_token'] == entity_prediction['pred_token']
+        return entity_prediction
+
+
+
 
 
 
