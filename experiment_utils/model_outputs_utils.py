@@ -275,7 +275,7 @@ class ModelOutputs:
         self.generate_outputs(batches)
 
     def generate_outputs(self, batches):
-        self.train_outputs = batches.train_batches.outputs
+        # self.train_outputs = batches.train_batches.outputs
         self.val_outputs = batches.val_batches.outputs
         self.test_outputs = batches.test_batches.outputs
 
