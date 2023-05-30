@@ -1052,7 +1052,7 @@ class ErrorAnalysis:
             res = self.results.test_metrics
         self.dc = DatasetCharacteristics(self.dataset_outputs, batches, toks, subwords, md_out, res)
         self.ent = Entity(self.dataset_outputs.val_metrics.seq_output)
-        self.db = DecisionBoundary(batches, self.val_dc.analysis_df, self.dataset_outputs)
+        self.db = DecisionBoundary(batches, self.dc.analysis_df, self.dataset_outputs)
         self.tr_im = TrainingImpact(mode, self.dataset_outputs, model_path, self.model.bert)
 
     # def test(self, mode, model_path):
