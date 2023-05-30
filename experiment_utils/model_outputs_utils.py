@@ -873,11 +873,12 @@ class DecisionBoundary:
     def annotate_clusters(self, k):
         flat_states = torch.cat([hidden_state[ids != 0] for batch in self.batches for ids, hidden_state in
                                  zip(batch['input_ids'], batch['hidden_states'])])
-        self.centroids, labels = self.cluster_data(3, flat_states)
+        centroids, labels = self.cluster_data(3, flat_states)
         self.entropy_df[f'{k}_clusters'] = labels
-        return self.entropy_df
+        self.centroid_df = self.generate_centroid_data(centroids)
+        return self.entropy_df, self.centroid_df
 
-    def generate_centroid_data(self):
+    def generate_centroid_data(self, centroids):
         flat_states = torch.cat([hidden_state[ids != 0] for batch in self.batches for ids, hidden_state in
                                  zip(batch['input_ids'], batch['hidden_states'])])
 
@@ -885,11 +886,11 @@ class DecisionBoundary:
         flat_first_tokens = list(self.entropy_df['first_tokens'].copy())
         flat_trues = list(self.entropy_df['truth'].copy())
 
-        centroid_data = torch.cat([flat_states, torch.from_numpy(self.centroids)])
+        centroid_data = torch.cat([flat_states, torch.from_numpy(centroids)])
         true_lbs = flat_trues.copy()
-        flat_words.extend(['Centroid'] * len(self.centroids))
-        flat_first_tokens.extend(['centroid'] * len(self.centroids))
-        true_lbs.extend(['C'] * len(self.centroids))
+        flat_words.extend(['Centroid'] * len(centroids))
+        flat_first_tokens.extend(['centroid'] * len(centroids))
+        true_lbs.extend(['C'] * len(centroids))
         centroid_reduced = UMAP(verbose=True, random_state=1).fit_transform(centroid_data).transpose()
         centroid_df = pd.DataFrame(
             {'words': flat_words, 'first_token': flat_first_tokens, 'labels': true_lbs, 'x': centroid_reduced[0],
