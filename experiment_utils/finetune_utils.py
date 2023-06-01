@@ -152,7 +152,7 @@ class TCModel(nn.Module):
         logits = self.output_layer(bert_out)
         average_loss, losses = self.loss_fn(logits, labels, attention_mask, self.num_tag)
         return {'average_loss': average_loss, 'losses': losses, 'logits': logits,
-                'hidden_states': output['last_hidden_state']}
+                'last_hidden_state': output['last_hidden_state'], 'hidden_states': output['hidden_states']}
 
 
 class Evaluation:
