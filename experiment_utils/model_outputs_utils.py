@@ -127,7 +127,7 @@ class GenerateSplitOutputs:
             # for each batch give me the sentence
             sentence_score = []
             for labels, sentence_nums, outputs, input_ids in zip(batch['labels'], batch['sentence_num'],
-                                                                 batch['hidden_states'], batch['input_ids']):
+                                                                 batch['last_hidden_state'], batch['input_ids']):
                 # input ids identify the tokens included in the sentence it is used to compute sentence length 0 means padding nonzero means token/subtoken
                 sentence_len = input_ids.nonzero().shape[0]
                 # get the unique values to extract sentence_number
@@ -206,7 +206,7 @@ class GenerateSplitBathces:
                 batches.append(({'labels': data['labels'], 'words_ids': data['words_ids'],
                                  'sentence_num': data['sentence_num'], 'attention_mask': data['attention_mask'],
                                  'input_ids': data['input_ids'], 'losses': outputs['losses'],
-                                 'logits': outputs['logits'], 'hidden_states': outputs['hidden_states']}))
+                                 'logits': outputs['logits'], 'last_hidden_state': outputs['last_hidden_state']}))
         return batches
 
     def compute_outputs(self, results):
@@ -361,7 +361,7 @@ class ReduceBatches:
 
     def reduce_split_batches(self, batches):
         flat_list = torch.cat([hidden_state[ids != 0] for batch in batches for ids, hidden_state in
-                               zip(batch['input_ids'], batch['hidden_states'])])
+                               zip(batch['input_ids'], batch['last_hidden_state'])])
         layer_reduced = UMAP(verbose=True, random_state=1).fit_transform(flat_list).transpose()
         ids = [(batch_id, sen_id, w_id, int(w)) for batch_id, batch in enumerate(batches) for sen_id, ids in
                enumerate(batch['input_ids']) for w_id, w in enumerate(ids[ids != 0])]
@@ -449,7 +449,7 @@ class DatasetCharacteristics:
 
     def create_analysis_df(self):
         flat_states = torch.cat([hidden_state[ids != 0] for batch in self.batches for ids, hidden_state in
-                                 zip(batch['input_ids'], batch['hidden_states'])])
+                                 zip(batch['input_ids'], batch['last_hidden_state'])])
         flat_labels = torch.cat([labels[ids != 0] for batch in self.batches for ids, labels in
                                  zip(batch['input_ids'], batch['labels'])])
         flat_losses = torch.cat([losses for losses in
@@ -872,7 +872,7 @@ class DecisionBoundary:
 
     def annotate_clusters(self, k):
         flat_states = torch.cat([hidden_state[ids != 0] for batch in self.batches for ids, hidden_state in
-                                 zip(batch['input_ids'], batch['hidden_states'])])
+                                 zip(batch['input_ids'], batch['last_hidden_state'])])
         centroids, labels = self.cluster_data(3, flat_states)
         self.entropy_df[f'{k}_clusters'] = labels
         self.centroid_df = self.generate_centroid_data(centroids)
@@ -880,7 +880,7 @@ class DecisionBoundary:
 
     def generate_centroid_data(self, centroids):
         flat_states = torch.cat([hidden_state[ids != 0] for batch in self.batches for ids, hidden_state in
-                                 zip(batch['input_ids'], batch['hidden_states'])])
+                                 zip(batch['input_ids'], batch['last_hidden_state'])])
 
         flat_words = list(self.entropy_df['words'].copy())
         flat_first_tokens = list(self.entropy_df['first_tokens'].copy())
@@ -899,7 +899,7 @@ class DecisionBoundary:
 
     def generate_token_score(self):
         flat_states = torch.cat([hidden_state[ids != 0] for batch in self.batches for ids, hidden_state in
-                                 zip(batch['input_ids'], batch['hidden_states'])])
+                                 zip(batch['input_ids'], batch['last_hidden_state'])])
         flat_labels = torch.cat([labels[ids != 0] for batch in self.batches for ids, labels in
                                  zip(batch['input_ids'], batch['labels'])])
 
