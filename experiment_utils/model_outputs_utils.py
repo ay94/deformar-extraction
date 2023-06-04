@@ -903,10 +903,15 @@ class DecisionBoundary:
         flat_labels = torch.cat([labels[ids != 0] for batch in self.batches for ids, labels in
                                  zip(batch['input_ids'], batch['labels'])])
 
+        flat_mask = ~self.analysis_df['pred'].isin(['IGNORED', '[SEP]', '[CLS]'])
+        flat_pred = self.analysis_df['pred']
+
         self.overall_score = silhouette_score(flat_states[flat_labels != -100], flat_labels[flat_labels != -100])
         silhouette_sample = silhouette_samples(flat_states[flat_labels != -100], flat_labels[flat_labels != -100])
+        pred_silhouette_sample = silhouette_samples(flat_states[flat_mask], flat_pred[flat_mask])
         without_ignore = self.entropy_df[self.entropy_df['label_ids'] != -100].copy()
-        without_ignore['token_score'] = silhouette_sample
+        without_ignore['truth_token_score'] = silhouette_sample
+        without_ignore['pred_token_score'] = pred_silhouette_sample
         return without_ignore
 
 
