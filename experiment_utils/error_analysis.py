@@ -40,6 +40,7 @@ class TokenAmbiguity:
         fig = px.imshow(df.T.values,
                         x=df.index,
                         y=df.columns,
+                        text_auto=True,
                         color_continuous_scale='YlOrBr')
 
         fig.update_layout(
