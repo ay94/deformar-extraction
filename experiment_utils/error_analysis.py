@@ -3,13 +3,11 @@ import plotly.express as px
 
 
 class TokenAmbiguity:
-    def __init__(self, subwords, tokens):
+    def __init__(self, subwords):
         self.subwords = subwords
-        self.tokens = tokens
-        token_tag_pairs = self.extract_token_tag_pair()
-        self.visualize_ambiguity(token_tag_pairs)
 
-    def extract_token_tag_pair(self):
+
+    def extract_token_tag_pair(self, tokens):
         pairs = []
         if len(self.tokens) > 1:
             print()
@@ -21,7 +19,8 @@ class TokenAmbiguity:
                 pairs.append((self.tokens[0], token_tag['tag']))
         return pairs
 
-    def visualize_ambiguity(self, token_tag_pairs):
+    def visualize_ambiguity(self, tokens):
+        token_tag_pairs = self.extract_token_tag_pair(tokens)
         # Create a dictionary of word-tag frequency counts
         word_tag_dict = {}
         for token, tag in token_tag_pairs:
