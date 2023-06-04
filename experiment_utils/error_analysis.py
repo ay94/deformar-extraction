@@ -9,14 +9,14 @@ class TokenAmbiguity:
 
     def extract_token_tag_pair(self, tokens):
         pairs = []
-        if len(self.tokens) > 1:
+        if len(tokens) > 1:
             print()
-            for token in self.tokens:
+            for token in tokens:
                 for token_tag in self.subwords[token]:
                     pairs.append((token, token_tag['tag']))
         else:
-            for token_tag in self.subwords[self.tokens[0]]:
-                pairs.append((self.tokens[0], token_tag['tag']))
+            for token_tag in self.subwords[tokens[0]]:
+                pairs.append((tokens[0], token_tag['tag']))
         return pairs
 
     def visualize_ambiguity(self, tokens):
