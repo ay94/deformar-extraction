@@ -873,7 +873,7 @@ class DecisionBoundary:
     def annotate_clusters(self, k):
         flat_states = torch.cat([hidden_state[ids != 0] for batch in self.batches for ids, hidden_state in
                                  zip(batch['input_ids'], batch['last_hidden_state'])])
-        centroids, labels = self.cluster_data(3, flat_states)
+        centroids, labels = self.cluster_data(k, flat_states)
         self.entropy_df[f'{k}_clusters'] = labels
         self.centroid_df = self.generate_centroid_data(centroids)
         return self.entropy_df, self.centroid_df
