@@ -1043,7 +1043,13 @@ class ErrorAnalysis:
         self.model = model
 
     def compute_errors(self, mode, model_path):
-        if mode =='val':
+        if mode == 'train':
+            batches = self.batches.train_batches
+            toks = self.tokenization_outputs.train_tokenizatin_output
+            subwords = self.tokenization_outputs.train_subwords
+            md_out = self.model_outputs.train_outputs
+            res = self.results.val_metrics
+        elif mode =='val':
             batches = self.batches.val_batches
             toks = self.tokenization_outputs.val_tokenizatin_output
             subwords = self.tokenization_outputs.train_subwords
