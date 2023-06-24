@@ -18,7 +18,6 @@ from arabert.preprocess import ArabertPreprocessor
 from sklearn.metrics import silhouette_samples, silhouette_score
 
 
-
 class WordPieceDataset:
     def __init__(self, texts, tags, config, tokenizer, preprocessor=None):
         self.texts = texts
@@ -965,6 +964,7 @@ class AttentionSimilarity:
         scores.append(layer)
         return scores[0]
 
+
 class TrainingImpact:
     def __init__(self, mode, outputs, model_path, model):
         self.model_path = model_path
@@ -1048,8 +1048,8 @@ class ErrorAnalysis:
             toks = self.tokenization_outputs.train_tokenizatin_output
             subwords = self.tokenization_outputs.train_subwords
             md_out = self.model_outputs.train_outputs
-            res = self.results.val_metrics
-        elif mode =='val':
+            res = self.results.train_metrics
+        elif mode == 'val':
             batches = self.batches.val_batches
             toks = self.tokenization_outputs.val_tokenizatin_output
             subwords = self.tokenization_outputs.train_subwords
