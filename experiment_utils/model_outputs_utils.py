@@ -261,12 +261,12 @@ class BatchOutputs:
         self.generate_batches(outputs, model)
 
     def generate_batches(self, outputs, model):
-        print('Generate Training Batches')
-        self.train_batches = GenerateSplitBathces(outputs, model, outputs.train_dataloader)
+        # print('Generate Training Batches')
+        # self.train_batches = GenerateSplitBathces(outputs, model, outputs.train_dataloader)
         # print('Generate Validation Batches')
         # self.val_batches = GenerateSplitBathces(outputs, model, outputs.val_dataloader)
-        # print('Generate Test Batches')
-        # self.test_batches = GenerateSplitBathces(outputs, model, outputs.test_dataloader)
+        print('Generate Test Batches')
+        self.test_batches = GenerateSplitBathces(outputs, model, outputs.test_dataloader)
 
 
 class ModelOutputs:
