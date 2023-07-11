@@ -261,10 +261,10 @@ class BatchOutputs:
         self.generate_batches(outputs, model)
 
     def generate_batches(self, outputs, model):
-        # print('Generate Training Batches')
-        # self.train_batches = GenerateSplitBathces(outputs, model, outputs.train_dataloader)
-        # print('Generate Validation Batches')
-        # self.val_batches = GenerateSplitBathces(outputs, model, outputs.val_dataloader)
+        print('Generate Training Batches')
+        self.train_batches = GenerateSplitBathces(outputs, model, outputs.train_dataloader)
+        print('Generate Validation Batches')
+        self.val_batches = GenerateSplitBathces(outputs, model, outputs.val_dataloader)
         print('Generate Test Batches')
         self.test_batches = GenerateSplitBathces(outputs, model, outputs.test_dataloader)
 
@@ -275,8 +275,8 @@ class ModelOutputs:
 
     def generate_outputs(self, batches):
         self.train_outputs = batches.train_batches.outputs
-        # self.val_outputs = batches.val_batches.outputs
-        # self.test_outputs = batches.test_batches.outputs
+        self.val_outputs = batches.val_batches.outputs
+        self.test_outputs = batches.test_batches.outputs
 
 
 class TokenizationOutputs:
