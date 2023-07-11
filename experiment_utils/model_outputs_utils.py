@@ -163,7 +163,7 @@ class GenerateSplitOutputs:
             self.label_score[lb].extend(silhouette_sample[label_indices])
 
     def generate_split_outputs(self, batches):
-        self.compute_silhouette(batches)
+        # self.compute_silhouette(batches)
         self.align_loss_input_ids(batches)
 
     def align_loss_input_ids(self, batches):
