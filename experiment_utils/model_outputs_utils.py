@@ -1066,13 +1066,3 @@ class ErrorAnalysis:
         self.db = DecisionBoundary(batches, self.dc.analysis_df, self.dataset_outputs)
         # self.tr_im = TrainingImpact(mode, self.dataset_outputs, model_path, self.model.bert)
 
-    # def test(self, mode, model_path):
-    #     batches = self.batches.test_batches
-    #     toks = self.tokenization_outputs.test_tokenizatin_output
-    #     subwords = self.tokenization_outputs.train_subwords
-    #     md_out = self.model_outputs.test_outputs
-    #     res = self.results.test_metrics
-    #     self.test_dc = DatasetCharacteristics(self.dataset_outputs, batches, toks, subwords, md_out, res)
-    #     self.test_ent = Entity(self.dataset_outputs.test_metrics.seq_output)
-    #     self.test_db = DecisionBoundary(batches, self.test_dc.analysis_df, self.dataset_outputs)
-    #     self.test_tr_im = TrainingImpact(mode, self.dataset_outputs, model_path, self.model.bert)
