@@ -1061,3 +1061,93 @@ class ErrorAnalysis:
         self.db = DecisionBoundary(batches, self.dc.analysis_df, self.dataset_outputs)
         self.tr_im = TrainingImpact(mode, self.dataset_outputs, model_path, self.model.bert)
 
+class SaveAnalysis:
+  def __init__(self, out_fh, error_analysis, mode, model_path):
+
+      self.ea = error_analysis
+      self.out_fh = out_fh
+      self.mode = mode
+      self.ea.compute_analysis_data(mode, model_path)
+      self.generate_split_outputs()
+
+
+
+  def generate_confusion(self,):
+      confusion_data = pd.DataFrame()
+      confusion_data['truth'] = self.ea.ent.seq_true
+      confusion_data['pred'] = self.ea.ent.seq_pred
+      entity_prediction = self.ea.ent.entity_prediction
+      return confusion_data, entity_prediction
+
+  def generate_clustering(self,):
+      centroid_data = []
+      cols = [3, 4, 9]
+      for col in cols:
+        cluster_df, centroid = self.ea.db.annotate_clusters(col)
+        centroid_data.append(centroid)
+      centroid_df =  pd.concat(centroid_data)
+      return cluster_df, centroid_df
+
+
+  def generate_split_outputs(self):
+    print("Generate Analysis Data")
+    self.cluster_df, self.centroid_df = self.generate_clustering()
+    print("Generate Prediction Data")
+    self.confusion_data, self.entity_prediction = self.generate_confusion()
+    self.seq_report = self.ea.seq_report
+    self.skl_report = self.ea.skl_report
+    print("Generate Scores Data")
+    self.token_score_df = self.ea.db.generate_token_score()
+    print("Generate Training Impact Data")
+    self.activations = self.ea.tr_im.compute_attention_similarities()
+    self.weights = self.ea.tr_im.compare_weights()
+
+  def save(self):
+
+
+    # because all the clustering fuction affecting the same df that is why we used one of theme because everytime we call the function the annotation is added
+    self.cluster_df.to_json(
+      self.out_fh.cr_fn(f'{self.mode}/{self.mode}_analysis_df.jsonl.gz'),
+      lines=True, orient='records'
+    )
+
+    self.centroid_df.to_json(
+      self.out_fh.cr_fn(f'{self.mode}/{self.mode}_centroid_df.jsonl.gz'),
+      lines=True, orient='records'
+    )
+
+
+    # this is adding token silhouette score because it is ignoring the IGNORED tokens and only considering entities
+    self.token_score_df.to_json(
+                self.out_fh.cr_fn(f'{self.mode}/{self.mode}_token_score_df.jsonl.gz'),
+                lines=True, orient='records'
+            )
+
+
+    self.confusion_data.to_json(
+                self.out_fh.cr_fn(f'{self.mode}/{self.mode}_confusion_data.jsonl.gz'),
+                lines=True, orient='records'
+            )
+
+    self.entity_prediction.to_json(
+                self.out_fh.cr_fn(f'{self.mode}/{self.mode}_entity_prediction.jsonl.gz'),
+                lines=True, orient='records'
+            )
+
+    self.seq_report.to_csv(
+      self.out_fh.cr_fn(f'{self.mode}/{self.mode}_seq_report.csv'),
+      index=False
+    )
+    self.skl_report.to_csv(
+      self.out_fh.cr_fn(f'{self.mode}/{self.mode}_skl_report.csv'),
+      index=False
+    )
+
+    self.activations.write_json(
+      self.out_fh.cr_fn(f'{self.mode}/{self.mode}_activations.json')
+    )
+    self.weights.write_json(
+      self.out_fh.cr_fn(f'{self.mode}/{self.mode}_weights.json')
+    )
+
+
