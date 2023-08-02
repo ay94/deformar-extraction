@@ -913,9 +913,9 @@ class AttentionSimilarity:
         sentence_a = ' '.join(example)
 
         if self.preprocessor == None:
-            inputs = self.tokenizer.encode_plus(sentence_a, return_tensors='pt', add_special_tokens=True)
+            inputs = self.tokenizer.encode_plus(sentence_a, return_tensors='pt', truncation=True, add_special_tokens=True)
         else:
-            inputs = self.tokenizer.encode_plus(self.preprocessor.preprocess(sentence_a), return_tensors='pt',
+            inputs = self.tokenizer.encode_plus(self.preprocessor.preprocess(sentence_a), truncation=True, return_tensors='pt',
                                                 add_special_tokens=True)
         for k, v in inputs.items():
             inputs[k] = v.to(self.device)
@@ -948,6 +948,7 @@ class AttentionSimilarity:
             head = []
         scores.append(layer)
         return scores[0]
+
 
 
 class TrainingImpact:
