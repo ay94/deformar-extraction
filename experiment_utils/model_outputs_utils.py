@@ -1,3 +1,4 @@
+import os
 import ast
 import math
 import copy
@@ -16,7 +17,8 @@ from transformers import AutoTokenizer, AutoModel
 from arabert.preprocess import ArabertPreprocessor
 
 from sklearn.metrics import silhouette_samples, silhouette_score
-
+from error_analysis import TokenAmbiguity
+from finetune_utils import TCModel
 
 class WordPieceDataset:
     def __init__(self, texts, tags, config, tokenizer, preprocessor=None):
@@ -348,8 +350,6 @@ class ModelResults:
         self.train_metrics = outputs.train_metrics
         self.val_metrics = outputs.val_metrics
         self.test_metrics = outputs.test_metrics
-
-
 
 
 class SaveModelOutputs:
@@ -837,7 +837,6 @@ class DecisionBoundary:
                                  zip(batch['input_ids'], batch['labels'])])
         mask = np.array(flat_labels != -100)
         states = flat_states[mask]
-        # ipdb.set_trace()
 
         centroids, labels = self.cluster_data(k, states)
         self.entropy_df[f'{k}_clusters'] = 'IGNORED'
@@ -852,7 +851,6 @@ class DecisionBoundary:
                                  zip(batch['input_ids'], batch['labels'])])
         mask = np.array(flat_labels != -100)
         states = flat_states[mask]
-        # ipdb.set_trace()
         c_df = self.entropy_df[mask].copy()
         centroid_df = pd.DataFrame()
         centroid_df['token_ids'] = list(c_df['token_ids'].values) + ['C'] * k
@@ -863,21 +861,12 @@ class DecisionBoundary:
         centroid_df['centroid'] = f'Centroid-{k}'
         centroid_df['clusters'] = list(c_df[f'{k}_clusters'].values) + ['C'] * k
 
-        # flat_words = list(c_df['words'].copy())
-        # flat_first_tokens = list(c_df['first_tokens'].copy())
-        # flat_trues = list(c_df['truth'].copy())
-
         centroid_data = torch.cat([states, torch.from_numpy(centroids)])
-        # true_lbs = flat_trues.copy()
-        # flat_words.extend(['Centroid'] * len(centroids))
-        # flat_first_tokens.extend(['centroid'] * len(centroids))
-        # true_lbs.extend(['C'] * len(centroids))
+
         centroid_reduced = UMAP(verbose=True, random_state=1).fit_transform(centroid_data).transpose()
         centroid_df['x'] = centroid_reduced[0]
         centroid_df['y'] = centroid_reduced[1]
-        # centroid_df = pd.DataFrame(
-        #     {'words': flat_words, 'first_token': flat_first_tokens, 'labels': true_lbs, 'x': centroid_reduced[0],
-        #      'y': centroid_reduced[1]})
+
         return centroid_df
 
     def generate_token_score(self):
@@ -898,7 +887,6 @@ class DecisionBoundary:
         return without_ignore
 
 
-
 class AttentionSimilarity:
     def __init__(self, device, model1, model2, tokeniser, preprocessor):
         self.device = device
@@ -913,9 +901,11 @@ class AttentionSimilarity:
         sentence_a = ' '.join(example)
 
         if self.preprocessor == None:
-            inputs = self.tokenizer.encode_plus(sentence_a, return_tensors='pt', truncation=True, add_special_tokens=True)
+            inputs = self.tokenizer.encode_plus(sentence_a, return_tensors='pt', truncation=True,
+                                                add_special_tokens=True)
         else:
-            inputs = self.tokenizer.encode_plus(self.preprocessor.preprocess(sentence_a), truncation=True, return_tensors='pt',
+            inputs = self.tokenizer.encode_plus(self.preprocessor.preprocess(sentence_a), truncation=True,
+                                                return_tensors='pt',
                                                 add_special_tokens=True)
         for k, v in inputs.items():
             inputs[k] = v.to(self.device)
@@ -948,7 +938,6 @@ class AttentionSimilarity:
             head = []
         scores.append(layer)
         return scores[0]
-
 
 
 class TrainingImpact:
@@ -1008,7 +997,7 @@ class TrainingImpact:
                 weight_diff = 1 - distance.cosine(pretrained_weight.flatten(), fine_tuned_weight.flatten())
                 weight_diff_matrix[layer, head] = weight_diff
 
-        return  self.weight_difference(weight_diff_matrix)
+        return self.weight_difference(weight_diff_matrix)
 
     def weight_difference(self, weight_diff_matrix):
         change_fig = px.imshow(weight_diff_matrix,
@@ -1017,7 +1006,6 @@ class TrainingImpact:
         change_fig.layout.height = 700
         change_fig.layout.width = 700
         return change_fig
-
 
 
 class ErrorAnalysis:
@@ -1061,93 +1049,161 @@ class ErrorAnalysis:
         self.db = DecisionBoundary(batches, self.dc.analysis_df, self.dataset_outputs)
         self.tr_im = TrainingImpact(mode, self.dataset_outputs, model_path, self.model.bert)
 
+
 class SaveAnalysis:
-  def __init__(self, out_fh, error_analysis, mode, model_path):
+    def __init__(self, out_fh, error_analysis, mode, model_path):
+        self.ea = error_analysis
+        self.out_fh = out_fh
+        self.mode = mode
+        self.ea.compute_analysis_data(mode, model_path)
+        self.generate_split_outputs()
 
-      self.ea = error_analysis
-      self.out_fh = out_fh
-      self.mode = mode
-      self.ea.compute_analysis_data(mode, model_path)
-      self.generate_split_outputs()
+    def generate_confusion(self, ):
+        confusion_data = pd.DataFrame()
+        confusion_data['truth'] = self.ea.ent.seq_true
+        confusion_data['pred'] = self.ea.ent.seq_pred
+        entity_prediction = self.ea.ent.entity_prediction
+        return confusion_data, entity_prediction
 
+    def generate_clustering(self, ):
+        centroid_data = []
+        cols = [3, 4, 9]
+        for col in cols:
+            cluster_df, centroid = self.ea.db.annotate_clusters(col)
+            centroid_data.append(centroid)
+        centroid_df = pd.concat(centroid_data)
+        return cluster_df, centroid_df
 
+    def generate_split_outputs(self):
+        print("Generate Analysis Data")
+        self.cluster_df, self.centroid_df = self.generate_clustering()
+        print("Generate Prediction Data")
+        self.confusion_data, self.entity_prediction = self.generate_confusion()
+        self.seq_report = self.ea.seq_report
+        self.skl_report = self.ea.skl_report
+        print("Generate Scores Data")
+        self.token_score_df = self.ea.db.generate_token_score()
+        print("Generate Training Impact Data")
+        self.activations = self.ea.tr_im.compute_attention_similarities()
+        self.weights = self.ea.tr_im.compare_weights()
 
-  def generate_confusion(self,):
-      confusion_data = pd.DataFrame()
-      confusion_data['truth'] = self.ea.ent.seq_true
-      confusion_data['pred'] = self.ea.ent.seq_pred
-      entity_prediction = self.ea.ent.entity_prediction
-      return confusion_data, entity_prediction
+    def save(self):
+        # because all the clustering fuction affecting the same df that is why we used one of theme because everytime we call the function the annotation is added
+        self.cluster_df.to_json(
+            self.out_fh.cr_fn(f'{self.mode}/{self.mode}_analysis_df.jsonl.gz'),
+            lines=True, orient='records'
+        )
 
-  def generate_clustering(self,):
-      centroid_data = []
-      cols = [3, 4, 9]
-      for col in cols:
-        cluster_df, centroid = self.ea.db.annotate_clusters(col)
-        centroid_data.append(centroid)
-      centroid_df =  pd.concat(centroid_data)
-      return cluster_df, centroid_df
+        self.centroid_df.to_json(
+            self.out_fh.cr_fn(f'{self.mode}/{self.mode}_centroid_df.jsonl.gz'),
+            lines=True, orient='records'
+        )
 
+        # this is adding token silhouette score because it is ignoring the IGNORED tokens and only considering entities
+        self.token_score_df.to_json(
+            self.out_fh.cr_fn(f'{self.mode}/{self.mode}_token_score_df.jsonl.gz'),
+            lines=True, orient='records'
+        )
 
-  def generate_split_outputs(self):
-    print("Generate Analysis Data")
-    self.cluster_df, self.centroid_df = self.generate_clustering()
-    print("Generate Prediction Data")
-    self.confusion_data, self.entity_prediction = self.generate_confusion()
-    self.seq_report = self.ea.seq_report
-    self.skl_report = self.ea.skl_report
-    print("Generate Scores Data")
-    self.token_score_df = self.ea.db.generate_token_score()
-    print("Generate Training Impact Data")
-    self.activations = self.ea.tr_im.compute_attention_similarities()
-    self.weights = self.ea.tr_im.compare_weights()
+        self.confusion_data.to_json(
+            self.out_fh.cr_fn(f'{self.mode}/{self.mode}_confusion_data.jsonl.gz'),
+            lines=True, orient='records'
+        )
 
-  def save(self):
+        self.entity_prediction.to_json(
+            self.out_fh.cr_fn(f'{self.mode}/{self.mode}_entity_prediction.jsonl.gz'),
+            lines=True, orient='records'
+        )
 
+        self.seq_report.to_csv(
+            self.out_fh.cr_fn(f'{self.mode}/{self.mode}_seq_report.csv'),
+            index=False
+        )
+        self.skl_report.to_csv(
+            self.out_fh.cr_fn(f'{self.mode}/{self.mode}_skl_report.csv'),
+            index=False
+        )
 
-    # because all the clustering fuction affecting the same df that is why we used one of theme because everytime we call the function the annotation is added
-    self.cluster_df.to_json(
-      self.out_fh.cr_fn(f'{self.mode}/{self.mode}_analysis_df.jsonl.gz'),
-      lines=True, orient='records'
-    )
-
-    self.centroid_df.to_json(
-      self.out_fh.cr_fn(f'{self.mode}/{self.mode}_centroid_df.jsonl.gz'),
-      lines=True, orient='records'
-    )
-
-
-    # this is adding token silhouette score because it is ignoring the IGNORED tokens and only considering entities
-    self.token_score_df.to_json(
-                self.out_fh.cr_fn(f'{self.mode}/{self.mode}_token_score_df.jsonl.gz'),
-                lines=True, orient='records'
-            )
-
-
-    self.confusion_data.to_json(
-                self.out_fh.cr_fn(f'{self.mode}/{self.mode}_confusion_data.jsonl.gz'),
-                lines=True, orient='records'
-            )
-
-    self.entity_prediction.to_json(
-                self.out_fh.cr_fn(f'{self.mode}/{self.mode}_entity_prediction.jsonl.gz'),
-                lines=True, orient='records'
-            )
-
-    self.seq_report.to_csv(
-      self.out_fh.cr_fn(f'{self.mode}/{self.mode}_seq_report.csv'),
-      index=False
-    )
-    self.skl_report.to_csv(
-      self.out_fh.cr_fn(f'{self.mode}/{self.mode}_skl_report.csv'),
-      index=False
-    )
-
-    self.activations.write_json(
-      self.out_fh.cr_fn(f'{self.mode}/{self.mode}_activations.json')
-    )
-    self.weights.write_json(
-      self.out_fh.cr_fn(f'{self.mode}/{self.mode}_weights.json')
-    )
+        self.activations.write_json(
+            self.out_fh.cr_fn(f'{self.mode}/{self.mode}_activations.json')
+        )
+        self.weights.write_json(
+            self.out_fh.cr_fn(f'{self.mode}/{self.mode}_weights.json')
+        )
 
 
+class AnalysisOutputs:
+    def __init__(self, fh, out_fh, data_name, model_name, model_path, preprocessor=None):
+        self.out_fh = out_fh
+        self.model_path = model_path
+        self.outputs = fh.load_object(f'evalOutputs/{model_name}_{data_name}_regular_outputs.pkl')
+        self.model = fh.load_model(f'trainOutputs/{model_name}_{data_name}_regular.bin')
+        self.batch_outputs = BatchOutputs(self.outputs, self.model)
+        self.model_outputs = ModelOutputs(self.batch_outputs)
+        self.results = ModelResults(self.outputs)
+        if preprocessor != None:
+            self.tokenization_outputs = TokenizationOutputs(self.outputs, model_path, preprocessor)
+        else:
+            self.tokenization_outputs = TokenizationOutputs(self.outputs, model_path)
+        self.ea = ErrorAnalysis(self.outputs,
+                                self.batch_outputs,
+                                self.tokenization_outputs,
+                                self.model_outputs,
+                                self.results,
+                                self.model)
+        self.create_folder(out_fh)
+        token_ambiguity = TokenAmbiguity(self.tokenization_outputs.train_subwords)
+        self.out_fh.save_object(token_ambiguity, 'token_ambiguity.pkl')
+        torch.save(self.model, self.out_fh.cr_fn(f'{model_name}_{data_name}_regular.bin'))
+
+    def create_folder(self, out_fh):
+        os.makedirs(out_fh.cr_fn('train'), exist_ok=True)
+        os.makedirs(out_fh.cr_fn('val'), exist_ok=True)
+        os.makedirs(out_fh.cr_fn('test'), exist_ok=True)
+
+    def save_analysis(self, mode):
+        self.analysis = SaveAnalysis(self.out_fh, self.ea, mode, self.model_path)
+        self.analysis.save()
+
+
+class AuxilariyOutputs:
+    def __init__(self, model_name, data_name, model_path, fh, out_fh):
+        device = torch.device('cuda')
+        outputs = fh.load_object(f'evalOutputs/{model_name}_{data_name}_regular_outputs.pkl')
+        pretrained_model = TCModel(len(outputs.data['labels']), model_path)
+        self.out_fh = out_fh
+        self.batch_outputs = BatchOutputs(outputs, pretrained_model.to(device))
+        self.light_train_df = pd.read_json(
+            out_fh.cr_fn('train/train_analysis_df.jsonl.gz'),
+            lines=True
+        )[["token_ids", "words", "agreement", "truth", "pred", "x", "y"]]
+
+        self.light_train_df.to_json(
+            out_fh.cr_fn(f'light_train_df.jsonl.gz'),
+            lines=True, orient='records'
+        )
+
+    def create_df(self, batches):
+        flat_states = torch.cat([hidden_state[ids != 0] for batch in batches for ids, hidden_state in
+                                 zip(batch['input_ids'], batch['last_hidden_state'])])
+
+        layer_reduced = UMAP(verbose=True, random_state=1).fit_transform(flat_states).transpose()
+
+        analysis_df = pd.DataFrame(
+            {'pre_x': layer_reduced[0], 'pre_y': layer_reduced[1]}
+        )
+        analysis_df = analysis_df.reset_index()
+        return analysis_df.rename(columns={'index': 'global_id'})
+
+    def save(self, mode):
+        if mode == 'train':
+            pre_df = self.create_df(self.batch_outputs.train_batches.batches)
+        elif mode == 'val':
+            pre_df = self.create_df(self.batch_outputs.val_batches.batches)
+        else:
+            pre_df = self.create_df(self.batch_outputs.test_batches.batches)
+
+        pre_df.to_json(
+            self.out_fh.cr_fn(f'{mode}/{mode}_pre_df.jsonl.gz'),
+            lines=True, orient='records'
+        )
