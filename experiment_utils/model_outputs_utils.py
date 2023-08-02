@@ -17,8 +17,8 @@ from transformers import AutoTokenizer, AutoModel
 from arabert.preprocess import ArabertPreprocessor
 
 from sklearn.metrics import silhouette_samples, silhouette_score
-from error_analysis import TokenAmbiguity
-from finetune_utils import TCModel
+from experiment_utils.error_analysis import TokenAmbiguity
+from experiment_utils.finetune_utils import TCModel
 
 class WordPieceDataset:
     def __init__(self, texts, tags, config, tokenizer, preprocessor=None):
