@@ -968,13 +968,13 @@ class TrainingImpact:
                                                     preprocessor)
 
     def compute_attention_similarities(self):
-        similarities = [self.attention_impact.compute_similarity(example[1])[0] for example in tqdm(self.data)]
+        similarities = [self.attention_impact.compute_similarity(example[1]) for example in tqdm(self.data[:500])]
         change_fig = px.imshow(np.array(similarities).mean(0),
                                labels=dict(x="Heads", y="Layers", color="Similarity Score"),
                                )
         change_fig.layout.height = 700
         change_fig.layout.width = 700
-        change_fig.show()
+        return change_fig
 
     def compute_example_similarities(self, id):
         scores = self.attention_impact.compute_similarity(self.data[id][1])
@@ -1008,7 +1008,7 @@ class TrainingImpact:
                 weight_diff = 1 - distance.cosine(pretrained_weight.flatten(), fine_tuned_weight.flatten())
                 weight_diff_matrix[layer, head] = weight_diff
 
-        self.weight_difference(weight_diff_matrix)
+        return  self.weight_difference(weight_diff_matrix)
 
     def weight_difference(self, weight_diff_matrix):
         change_fig = px.imshow(weight_diff_matrix,
@@ -1016,7 +1016,8 @@ class TrainingImpact:
                                )
         change_fig.layout.height = 700
         change_fig.layout.width = 700
-        change_fig.show()
+        return change_fig
+
 
 
 class ErrorAnalysis:
