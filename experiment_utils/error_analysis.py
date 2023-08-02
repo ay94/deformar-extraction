@@ -47,10 +47,10 @@ class TokenAmbiguity:
             title='Heatmap of Word Frequencies with All Tags',
             xaxis=dict(title='Words'),
             yaxis=dict(title='Tags'),
-            height=500,
-            width=800
+            height=700,
+            width=1200
         )
+        return fig
 
-        fig.show()
 
 
