@@ -832,28 +832,52 @@ class DecisionBoundary:
     def annotate_clusters(self, k):
         flat_states = torch.cat([hidden_state[ids != 0] for batch in self.batches for ids, hidden_state in
                                  zip(batch['input_ids'], batch['last_hidden_state'])])
-        centroids, labels = self.cluster_data(k, flat_states)
-        self.entropy_df[f'{k}_clusters'] = labels
-        self.centroid_df = self.generate_centroid_data(centroids)
+
+        flat_labels = torch.cat([labels[ids != 0] for batch in self.batches for ids, labels in
+                                 zip(batch['input_ids'], batch['labels'])])
+        mask = np.array(flat_labels != -100)
+        states = flat_states[mask]
+        # ipdb.set_trace()
+
+        centroids, labels = self.cluster_data(k, states)
+        self.entropy_df[f'{k}_clusters'] = 'IGNORED'
+        self.entropy_df.loc[mask, f'{k}_clusters'] = labels
+        self.centroid_df = self.generate_centroid_data(centroids, k)
         return self.entropy_df, self.centroid_df
 
-    def generate_centroid_data(self, centroids):
+    def generate_centroid_data(self, centroids, k):
         flat_states = torch.cat([hidden_state[ids != 0] for batch in self.batches for ids, hidden_state in
                                  zip(batch['input_ids'], batch['last_hidden_state'])])
+        flat_labels = torch.cat([labels[ids != 0] for batch in self.batches for ids, labels in
+                                 zip(batch['input_ids'], batch['labels'])])
+        mask = np.array(flat_labels != -100)
+        states = flat_states[mask]
+        # ipdb.set_trace()
+        c_df = self.entropy_df[mask].copy()
+        centroid_df = pd.DataFrame()
+        centroid_df['token_ids'] = list(c_df['token_ids'].values) + ['C'] * k
+        centroid_df['truth'] = list(c_df['truth'].values) + ['C'] * k
+        centroid_df['pred'] = list(c_df['pred'].values) + ['C'] * k
+        centroid_df['agreement'] = list(c_df['agreement'].values) + ['C'] * k
+        centroid_df['error_type'] = list(c_df['error_type'].values) + ['C'] * k
+        centroid_df['centroid'] = f'Centroid-{k}'
+        centroid_df['clusters'] = list(c_df[f'{k}_clusters'].values) + ['C'] * k
 
-        flat_words = list(self.entropy_df['words'].copy())
-        flat_first_tokens = list(self.entropy_df['first_tokens'].copy())
-        flat_trues = list(self.entropy_df['truth'].copy())
+        # flat_words = list(c_df['words'].copy())
+        # flat_first_tokens = list(c_df['first_tokens'].copy())
+        # flat_trues = list(c_df['truth'].copy())
 
-        centroid_data = torch.cat([flat_states, torch.from_numpy(centroids)])
-        true_lbs = flat_trues.copy()
-        flat_words.extend(['Centroid'] * len(centroids))
-        flat_first_tokens.extend(['centroid'] * len(centroids))
-        true_lbs.extend(['C'] * len(centroids))
+        centroid_data = torch.cat([states, torch.from_numpy(centroids)])
+        # true_lbs = flat_trues.copy()
+        # flat_words.extend(['Centroid'] * len(centroids))
+        # flat_first_tokens.extend(['centroid'] * len(centroids))
+        # true_lbs.extend(['C'] * len(centroids))
         centroid_reduced = UMAP(verbose=True, random_state=1).fit_transform(centroid_data).transpose()
-        centroid_df = pd.DataFrame(
-            {'words': flat_words, 'first_token': flat_first_tokens, 'labels': true_lbs, 'x': centroid_reduced[0],
-             'y': centroid_reduced[1]})
+        centroid_df['x'] = centroid_reduced[0]
+        centroid_df['y'] = centroid_reduced[1]
+        # centroid_df = pd.DataFrame(
+        #     {'words': flat_words, 'first_token': flat_first_tokens, 'labels': true_lbs, 'x': centroid_reduced[0],
+        #      'y': centroid_reduced[1]})
         return centroid_df
 
     def generate_token_score(self):
@@ -872,6 +896,7 @@ class DecisionBoundary:
         without_ignore['truth_token_score'] = silhouette_sample
         without_ignore['pred_token_score'] = pred_silhouette_sample
         return without_ignore
+
 
 
 class AttentionSimilarity:
