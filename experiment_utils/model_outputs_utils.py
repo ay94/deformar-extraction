@@ -1138,7 +1138,8 @@ class AnalysisOutputs:
         self.out_fh = out_fh
         self.model_path = model_path
         self.outputs = fh.load_object(f'evalOutputs/{model_name}_{data_name}_regular_outputs.pkl')
-        self.model = fh.load_model(f'trainOutputs/{model_name}_{data_name}_regular.bin')
+        load_model_path = fh.cr_fn('trainOutputs/{model_name}_{data_name}_regular.bin')
+        self.model = torch.load(load_model_path)
         self.batch_outputs = BatchOutputs(self.outputs, self.model)
         self.model_outputs = ModelOutputs(self.batch_outputs)
         self.results = ModelResults(self.outputs)
@@ -1154,8 +1155,8 @@ class AnalysisOutputs:
                                 self.model)
         self.create_folder(out_fh)
         self.out_fh.save_json(self.tokenization_outputs.train_subwords, 'train_subwords.json')
-        model_save_path = self.out_fh.cr_fn('initialization')
-        torch.save(self.model, f'{model_save_path}/{model_name}_{data_name}_regular.bin')
+        save_model_path = self.out_fh.cr_fn('initialization')
+        torch.save(self.model, f'{save_model_path}/{model_name}_{data_name}_regular.bin')
 
     def create_folder(self, out_fh):
         os.makedirs(out_fh.cr_fn('train'), exist_ok=True)
