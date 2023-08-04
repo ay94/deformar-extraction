@@ -20,6 +20,7 @@ from sklearn.metrics import silhouette_samples, silhouette_score
 from experiment_utils.error_analysis import TokenAmbiguity
 from experiment_utils.finetune_utils import TCModel
 
+
 class WordPieceDataset:
     def __init__(self, texts, tags, config, tokenizer, preprocessor=None):
         self.texts = texts
@@ -1141,7 +1142,7 @@ class AnalysisOutputs:
         self.batch_outputs = BatchOutputs(self.outputs, self.model)
         self.model_outputs = ModelOutputs(self.batch_outputs)
         self.results = ModelResults(self.outputs)
-        if preprocessor != None:
+        if preprocessor is not None:
             self.tokenization_outputs = TokenizationOutputs(self.outputs, model_path, preprocessor)
         else:
             self.tokenization_outputs = TokenizationOutputs(self.outputs, model_path)
@@ -1152,18 +1153,21 @@ class AnalysisOutputs:
                                 self.results,
                                 self.model)
         self.create_folder(out_fh)
-        token_ambiguity = TokenAmbiguity(self.tokenization_outputs.train_subwords)
-        self.out_fh.save_object(token_ambiguity, 'token_ambiguity.pkl')
-        torch.save(self.model, self.out_fh.cr_fn(f'{model_name}_{data_name}_regular.bin'))
+        self.out_fh.save_json(self.tokenization_outputs.train_subwords, 'train_subwords.json')
+        model_save_path = self.out_fh.cr_fn('initialization')
+        torch.save(self.model, f'{model_save_path}/{model_name}_{data_name}_regular.bin')
 
     def create_folder(self, out_fh):
         os.makedirs(out_fh.cr_fn('train'), exist_ok=True)
         os.makedirs(out_fh.cr_fn('val'), exist_ok=True)
         os.makedirs(out_fh.cr_fn('test'), exist_ok=True)
+        os.makedirs(out_fh.cr_fn('initialization'), exist_ok=True)
 
     def save_analysis(self, mode):
         self.analysis = SaveAnalysis(self.out_fh, self.ea, mode, self.model_path)
         self.analysis.save()
+
+
 
 
 class AuxilariyOutputs:
