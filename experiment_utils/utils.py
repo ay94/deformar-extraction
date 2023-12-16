@@ -50,14 +50,14 @@ class GenerateData:
         return {'train': train, 'val': val, 'test': test, 'labels': list(ner_map.keys()), 'labels_map': ner_map,
                 'inv_labels': ner_inv_map}
 
-    def generate_split_data(self, dataset, split, ner_iv_map):
+    def generate_split_data(self, dataset, split, ner_inv_map):
         sentences = []
         data_split = dataset[split]
         print(f'Generating {split} Split')
         for i in tqdm(range(len(data_split))):
             id = int(data_split.__getitem__(i)['id'])
             tokens = data_split.__getitem__(i)['tokens']
-            tags = [ner_iv_map[tid] for tid in data_split.__getitem__(i)['ner_tags']]
+            tags = [ner_inv_map[tid] for tid in data_split.__getitem__(i)['ner_tags']]
             sentences.append((id, tokens, tags))
         return sentences
 
