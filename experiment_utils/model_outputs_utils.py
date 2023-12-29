@@ -1138,7 +1138,7 @@ class AnalysisOutputs:
         self.out_fh = out_fh
         self.model_path = model_path
         self.outputs = fh.load_object(f'evalOutputs/{model_name}_{data_name}_regular_outputs.pkl')
-        load_model_path = fh.cr_fn('trainOutputs/{model_name}_{data_name}_regular.bin')
+        load_model_path = fh.cr_fn(f'trainOutputs/{model_name}_{data_name}_regular.bin')
         self.model = torch.load(load_model_path)
         self.batch_outputs = BatchOutputs(self.outputs, self.model)
         self.model_outputs = ModelOutputs(self.batch_outputs)
