@@ -1147,6 +1147,7 @@ class AnalysisOutputs:
             self.tokenization_outputs = TokenizationOutputs(self.outputs, model_path, preprocessor)
         else:
             self.tokenization_outputs = TokenizationOutputs(self.outputs, model_path)
+        print('Finished Tokenisation Outputs')
         self.ea = ErrorAnalysis(self.outputs,
                                 self.batch_outputs,
                                 self.tokenization_outputs,
