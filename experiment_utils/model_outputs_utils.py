@@ -1155,7 +1155,8 @@ class AnalysisOutputs:
                                 self.results,
                                 self.model)
         self.create_folder(out_fh)
-        self.out_fh.save_json(self.tokenization_outputs.train_subwords, 'train_subwords.json')
+        print('Save Tokenizatoin Subwords Output')
+        self.out_fh.save_json('train_subwords.json', self.tokenization_outputs.train_subwords)
         save_model_path = self.out_fh.cr_fn('initialization')
         torch.save(self.model, f'{save_model_path}/{model_name}_{data_name}_regular.bin')
 
