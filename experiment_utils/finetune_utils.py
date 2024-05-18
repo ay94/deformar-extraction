@@ -7,23 +7,28 @@ from torch.optim import AdamW
 from tqdm.notebook import tqdm
 from arabert.preprocess import ArabertPreprocessor
 from transformers import AutoTokenizer, AutoModel, get_linear_schedule_with_warmup
-from seqeval.metrics import f1_score as seq_f1, precision_score as seq_precision, recall_score as seq_recall, classification_report as seq_classification
-from sklearn.metrics import f1_score as skl_f1, precision_score as skl_precision, recall_score as skl_recall, classification_report as skl_classification
+from seqeval.metrics import f1_score as seq_f1, precision_score as seq_precision, recall_score as seq_recall, \
+    classification_report as seq_classification
+from sklearn.metrics import f1_score as skl_f1, precision_score as skl_precision, recall_score as skl_recall, \
+    classification_report as skl_classification
+
 
 def current_milli_time():
     return int(round(time.time() * 1000))
 
+
 class FineTuneConfig:
-  def __init__(self) -> None:
-      self.MAX_SEQ_LEN = 256
-      self.TRAIN_BATCH_SIZE = 16
-      self.VALID_BATCH_SIZE = 8
-      self.EPOCHS = 4
-      self.SPLITS = 4
-      self.LEARNING_RATE = 5e-5
-      self.WARMUP_RATIO = 0.1
-      self.MAX_GRAD_NORM = 1.0
-      self.ACCUMULATION_STEPS = 1
+    def __init__(self, max_seq_len=256, train_batch_size=16, valid_batch_size=8, epochs=4, splits=4, learning_rate=5e-5,
+                 warmup_ratio=0.1, max_grad_norm=1.0, accumulation_steps=1):
+        self.MAX_SEQ_LEN = max_seq_len
+        self.TRAIN_BATCH_SIZE = train_batch_size
+        self.VALID_BATCH_SIZE = valid_batch_size
+        self.EPOCHS = epochs
+        self.SPLITS = splits
+        self.LEARNING_RATE = learning_rate
+        self.WARMUP_RATIO = warmup_ratio
+        self.MAX_GRAD_NORM = max_grad_norm
+        self.ACCUMULATION_STEPS = accumulation_steps
 
 
 class TCDataset:
@@ -42,14 +47,12 @@ class TCDataset:
         return len(self.texts)
 
     def __getitem__(self, item):
-        textlist = self.texts[item]
+        text_list = self.texts[item]
         tags = self.tags[item]
 
-        tokens = []
-        label_ids = []
-        word_ids = []
-        for word_id, (word, label) in enumerate(zip(textlist, tags)):
-            if self.PREPROCESSOR != None:
+        tokens, label_ids, word_ids = [], [], []
+        for word_id, (word, label) in enumerate(zip(text_list, tags)):
+            if self.PREPROCESSOR is not None:
                 clean_word = self.PREPROCESSOR.preprocess(word)
                 word_tokens = self.TOKENIZER.tokenize(clean_word)
             else:
@@ -62,7 +65,7 @@ class TCDataset:
                 word_ids.extend([word_id] * (len(word_tokens)))
 
         # Account for [CLS] and [SEP] with "- 2" and with "- 3" for RoBERTa.
-        special_tokens_count = self.TOKENIZER.num_special_tokens_to_add()
+        special_tokens_count = self.TOKENIZER.num_special_tokens_to_add()  # This is model specific needs changing for other models
         if len(tokens) > self.config.MAX_SEQ_LEN - special_tokens_count:
             tokens = tokens[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
             label_ids = label_ids[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
@@ -111,10 +114,6 @@ class TCDataset:
             'words_ids': torch.tensor(word_ids, dtype=torch.long),
             'sentence_num': torch.tensor(sentence_num, dtype=torch.long),
         }
-
-
-
-
 
 
 class TCModel(nn.Module):
@@ -218,8 +217,6 @@ class Evaluation:
 
 
 class FineTuneUtils:
-    def __init__(self) -> None:
-        pass
 
     def train_fn(self, data_loader, model, optimizer, device, scheduler, config):
         model.train()
@@ -234,11 +231,13 @@ class FineTuneUtils:
             # item returns the scalar only not the whole tensor
             final_loss += loss.item()
             if (i + 1) % config.ACCUMULATION_STEPS == 0:
+                # Gradient accumulation is a technique used when the effective batch size is larger than the memory capacity of the GPU. Instead of updating the model parameters after every mini-batch, gradients are accumulated over multiple mini-batches and then used to update the parameters.
+                # Gradient clipping is a technique used to prevent the exploding gradient problem, where gradients become excessively large during training, leading to unstable updates and convergence issues.
                 torch.nn.utils.clip_grad_norm_(model.parameters(), config.MAX_GRAD_NORM)
                 optimizer.step()
                 scheduler.step()
                 optimizer.zero_grad()
-        return (final_loss / len(data_loader))
+        return final_loss / len(data_loader)
 
     def eval_fn(self, data_loader, model, device, inv_labels):
         model.eval()
@@ -325,7 +324,12 @@ class Trainer:
         self.tokenizer_path = tokenizer_path
         self.preprocessor_path = preprocessor_path
         self.device = self.load_device()
-        self.data = corpora[self.data_name]
+
+        try:
+            self.data = corpora[self.data_name]
+        except KeyError:
+            raise ValueError(f"Data name {self.data_name} not found in corpora.")
+
         self.num_tags = len(self.data['labels'])
         self.TOKENIZER, self.PREPROCESSOR = self.load_tokenizer()
         self.train_dataset, self.train_dataloader = self.load_data('train')
@@ -336,7 +340,6 @@ class Trainer:
         self.fine_tune = FineTuneUtils()
 
     def load_data(self, mode):
-        data_size = 10
         dataset = TCDataset(
             texts=[x[1] for x in self.data[mode][:]],
             tags=[x[2] for x in self.data[mode][:]],
@@ -345,29 +348,32 @@ class Trainer:
             tokenizer=self.TOKENIZER,
             preprocessor=self.PREPROCESSOR)
 
-        data_laoder = torch.utils.data.DataLoader(
+        data_loader = torch.utils.data.DataLoader(
             dataset=dataset,
             # if the mode is train return the TRAIN_BATCH_SIZE else return VALID_BATCH_SIZE
             batch_size=self.config.TRAIN_BATCH_SIZE if mode == 'train' else self.config.VALID_BATCH_SIZE,
             num_workers=2)
 
-        return dataset, data_laoder
+        return dataset, data_loader
 
     def load_device(self):
+        """Load the appropriate device (GPU/CPU)."""
         use_cuda = torch.cuda.is_available()
-        return torch.device("cuda:0" if use_cuda else "cpu")
+        device = torch.device("cuda:0" if use_cuda else "cpu")
+        print(f"Using device: {device}")
+        return device
 
     def load_tokenizer(self):
-        if self.preprocessor_path != None:
+        if self.preprocessor_path is not None:
             print(f'Loading Preprocessor {self.preprocessor_path}')
             PREPROCESSOR = ArabertPreprocessor(self.preprocessor_path)
         else:
             PREPROCESSOR = None
         print(f'Loading Tokenizer {self.tokenizer_path}')
-        if self.tokenizer_path == 'bert-base-multilingual-cased':
-            TOKENIZER = AutoTokenizer.from_pretrained(self.tokenizer_path, do_lower_case=False)
-        else:
-            TOKENIZER = AutoTokenizer.from_pretrained(self.tokenizer_path, do_lower_case=False)
+        TOKENIZER = AutoTokenizer.from_pretrained(
+            self.tokenizer_path,
+            do_lower_case=(self.tokenizer_path != 'bert-base-multilingual-cased')
+        )
 
         return TOKENIZER, PREPROCESSOR
 
@@ -376,6 +382,9 @@ class Trainer:
         model.to(self.device)
         print('MODEL LOADED!')
         param_optimizer = list(model.named_parameters())
+        # Bias: An additional parameter in a neural network neuron that allows the activation function to be shifted.
+        # Purpose: Provides flexibility, helps in learning complex patterns, and ensures non-zero output.
+        # Importance: Essential for the expressiveness of the model, improving the fit, and contributing to the stability and convergence of the training process.
         no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
         optimizer_parameters = [
             {
@@ -393,7 +402,22 @@ class Trainer:
         ]
         num_train_steps = int(len(self.train_dataset) / self.config.TRAIN_BATCH_SIZE * self.config.EPOCHS)
         print('Number of training steps: ', num_train_steps)
+        """
+        Weight decay is a regularization technique used to prevent overfitting by adding a penalty to the loss function based on the size of the weights. It's often implemented as L2 regularization.
+        In the context of optimization, weight decay can be thought of as adding a term to the loss function that penalizes large weights:
+        L = L_original + λ * sum(weights^2), where L_original is the original loss, and λ is the regularization strength.
+        This helps to keep the weights small and discourages complex models that might overfit the training data.
+        Balancing Act: The regularization term λ controls the balance between fitting the training data  and keeping the weights small A larger λ puts more emphasis on keeping weights small, while a smaller λ puts more emphasis on fitting the training data.
+        """
         self.optimizer = AdamW(optimizer_parameters, lr=self.config.LEARNING_RATE)
+
+        """
+        The scheduler adjusts the learning rate during training. This can help improve the training process by gradually increasing or decreasing the learning rate.
+
+        Linear Scheduler with Warmup: This scheduler starts with a low learning rate (during the warmup phase) and gradually increases it to the initial learning rate, then decreases it linearly to 0 over the remaining training steps.
+        Warmup is a technique used to start training with a lower learning rate and gradually increase it to the intended learning rate over a few iterations. This helps to stabilize the training process, especially at the beginning, preventing large updates that can destabilize learning.
+        Warmup Steps: The number of steps for which the learning rate is gradually increased.
+        """
         self.scheduler = get_linear_schedule_with_warmup(
             self.optimizer, num_warmup_steps=int(self.config.WARMUP_RATIO * num_train_steps),
             num_training_steps=num_train_steps)
@@ -404,7 +428,7 @@ class Trainer:
                                                 self.scheduler, self.config)
         return training_loss
 
-    def evaluate(self, dataloader, flag=False):
+    def evaluate(self, dataloader):
         eval_metrics, eval_loss = self.fine_tune.eval_fn(dataloader, self.model, self.device, self.data['inv_labels'])
         return eval_metrics, eval_loss
 
