@@ -82,7 +82,6 @@ class FileHandler():
     def cr_fn(self, file_name):
         return self.create_filename(file_name)
 
-
     def load_corpora(self, dataset, path):
         corpora = GenerateData(self, dataset, path)
         return corpora.corpora
@@ -130,9 +129,9 @@ class FileHandler():
 
     def load_json(self, path):
         with open(self.cr_fn(path)) as json_file:
-          data = json.load(json_file)
-          self.keys_to_int(data)
-          return data
+            data = json.load(json_file)
+            self.keys_to_int(data)
+            return data
 
     def save_object(self, obj, obj_name):
         with open(self.cr_fn(obj_name), 'wb') as output:  # Overwrites any existing file.
@@ -157,6 +156,3 @@ class FileHandler():
         model = torch.load(self.cr_fn(model_name))
         model.eval()
         return model
-
-
-
