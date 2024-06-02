@@ -139,3 +139,8 @@ experiment_utils.egg-info/
 *.pyx
 *.pxd
 __pycache__/
+
+# Ignore Cython compiled Python files
+*.cpython-*.pyc
+*.cpython-*.so
+*.cpython-*.pyd
