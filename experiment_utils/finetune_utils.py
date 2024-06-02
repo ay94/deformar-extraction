@@ -1,16 +1,22 @@
 import time
-import torch
+
 import numpy as np
 import pandas as pd
+import torch
+from arabert.preprocess import ArabertPreprocessor
+from seqeval.metrics import classification_report as seq_classification
+from seqeval.metrics import f1_score as seq_f1
+from seqeval.metrics import precision_score as seq_precision
+from seqeval.metrics import recall_score as seq_recall
+from sklearn.metrics import classification_report as skl_classification
+from sklearn.metrics import f1_score as skl_f1
+from sklearn.metrics import precision_score as skl_precision
+from sklearn.metrics import recall_score as skl_recall
 from torch import nn
 from torch.optim import AdamW
 from tqdm.notebook import tqdm
-from arabert.preprocess import ArabertPreprocessor
-from transformers import AutoTokenizer, AutoModel, get_linear_schedule_with_warmup
-from seqeval.metrics import f1_score as seq_f1, precision_score as seq_precision, recall_score as seq_recall, \
-    classification_report as seq_classification
-from sklearn.metrics import f1_score as skl_f1, precision_score as skl_precision, recall_score as skl_recall, \
-    classification_report as skl_classification
+from transformers import (AutoModel, AutoTokenizer,
+                          get_linear_schedule_with_warmup)
 
 
 def current_milli_time():
@@ -18,8 +24,18 @@ def current_milli_time():
 
 
 class FineTuneConfig:
-    def __init__(self, max_seq_len=256, train_batch_size=16, valid_batch_size=8, epochs=4, splits=4, learning_rate=5e-5,
-                 warmup_ratio=0.1, max_grad_norm=1.0, accumulation_steps=1):
+    def __init__(
+        self,
+        max_seq_len=256,
+        train_batch_size=16,
+        valid_batch_size=8,
+        epochs=4,
+        splits=4,
+        learning_rate=5e-5,
+        warmup_ratio=0.1,
+        max_grad_norm=1.0,
+        accumulation_steps=1,
+    ):
         self.MAX_SEQ_LEN = max_seq_len
         self.TRAIN_BATCH_SIZE = train_batch_size
         self.VALID_BATCH_SIZE = valid_batch_size
@@ -61,11 +77,16 @@ class TCDataset:
             if len(word_tokens) > 0:
                 tokens.extend(word_tokens)
                 # Use the real label id for the first token of the word, and padding ids for the remaining tokens
-                label_ids.extend([self.label_map[label]] + [self.pad_token_label_id] * (len(word_tokens) - 1))
+                label_ids.extend(
+                    [self.label_map[label]]
+                    + [self.pad_token_label_id] * (len(word_tokens) - 1)
+                )
                 word_ids.extend([word_id] * (len(word_tokens)))
 
         # Account for [CLS] and [SEP] with "- 2" and with "- 3" for RoBERTa.
-        special_tokens_count = self.TOKENIZER.num_special_tokens_to_add()  # This is model specific needs changing for other models
+        special_tokens_count = (
+            self.TOKENIZER.num_special_tokens_to_add()
+        )  # This is model specific needs changing for other models
         if len(tokens) > self.config.MAX_SEQ_LEN - special_tokens_count:
             tokens = tokens[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
             label_ids = label_ids[: (self.config.MAX_SEQ_LEN - special_tokens_count)]
@@ -107,12 +128,12 @@ class TCDataset:
         assert len(word_ids) == self.config.MAX_SEQ_LEN
 
         return {
-            'input_ids': torch.tensor(input_ids, dtype=torch.long),
-            'attention_mask': torch.tensor(attention_mask, dtype=torch.long),
-            'token_type_ids': torch.tensor(token_type_ids, dtype=torch.long),
-            'labels': torch.tensor(label_ids, dtype=torch.long),
-            'words_ids': torch.tensor(word_ids, dtype=torch.long),
-            'sentence_num': torch.tensor(sentence_num, dtype=torch.long),
+            "input_ids": torch.tensor(input_ids, dtype=torch.long),
+            "attention_mask": torch.tensor(attention_mask, dtype=torch.long),
+            "token_type_ids": torch.tensor(token_type_ids, dtype=torch.long),
+            "labels": torch.tensor(label_ids, dtype=torch.long),
+            "words_ids": torch.tensor(word_ids, dtype=torch.long),
+            "sentence_num": torch.tensor(sentence_num, dtype=torch.long),
         }
 
 
@@ -120,8 +141,10 @@ class TCModel(nn.Module):
     def __init__(self, num_tag, path):
         super(TCModel, self).__init__()
         self.num_tag = num_tag
-        print(f'Loading BERT Model: {path}')
-        self.bert = AutoModel.from_pretrained(path, output_attentions=True, output_hidden_states=True)
+        print(f"Loading BERT Model: {path}")
+        self.bert = AutoModel.from_pretrained(
+            path, output_attentions=True, output_hidden_states=True
+        )
         self.bert_drop = nn.Dropout(0.3)
         self.output_layer = nn.Linear(self.bert.config.hidden_size, self.num_tag)
 
@@ -129,29 +152,39 @@ class TCModel(nn.Module):
         # loss function that returns the mean
         lfn = nn.CrossEntropyLoss()
         # loss function that returns the losss fore each sample
-        lfns = nn.CrossEntropyLoss(reduction='none')
+        lfns = nn.CrossEntropyLoss(reduction="none")
         # mask to specify the active losses (sentence boundary) based on attention mask
         active_loss = mask.view(-1) == 1
         # this reshape the output dimension from torch.Size([16, 256, 9]) to torch.Size([4096, 9]) now the inner dimensionality match
         active_logits = output.view(-1, num_labels)
         #  the where function takes tensor of condition, tensor of x and tensor of y if the condition is true the value of x will be used in the output tensor if the condition is flase the value of y will be used
         active_labels = torch.where(
-            active_loss,
-            target.view(-1),
-            torch.tensor(lfn.ignore_index).type_as(target))
+            active_loss, target.view(-1), torch.tensor(lfn.ignore_index).type_as(target)
+        )
         # average_loss
         loss = lfn(active_logits, active_labels)
         # words loss
         losses = lfns(active_logits, active_labels)
         return loss, losses
 
-    def forward(self, input_ids, attention_mask, token_type_ids, labels, words_ids, sentence_num):
-        output = self.bert(input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)
-        bert_out = self.bert_drop(output['last_hidden_state'])
+    def forward(
+        self, input_ids, attention_mask, token_type_ids, labels, words_ids, sentence_num
+    ):
+        output = self.bert(
+            input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids
+        )
+        bert_out = self.bert_drop(output["last_hidden_state"])
         logits = self.output_layer(bert_out)
-        average_loss, losses = self.loss_fn(logits, labels, attention_mask, self.num_tag)
-        return {'average_loss': average_loss, 'losses': losses, 'logits': logits,
-                'last_hidden_state': output['last_hidden_state'], 'hidden_states': output['hidden_states']}
+        average_loss, losses = self.loss_fn(
+            logits, labels, attention_mask, self.num_tag
+        )
+        return {
+            "average_loss": average_loss,
+            "losses": losses,
+            "logits": logits,
+            "last_hidden_state": output["last_hidden_state"],
+            "hidden_states": output["hidden_states"],
+        }
 
 
 class Evaluation:
@@ -162,15 +195,17 @@ class Evaluation:
         self.loss = average_loss
 
     def create_classification_report(self, raw):
-        report = raw.strip().split('\n')
+        report = raw.strip().split("\n")
         lines = []
         for line in report[1:]:
             tokens = line.split()
-            if line != '':
+            if line != "":
                 if len(tokens) > 5:
                     del tokens[1]
                 lines.append(tokens)
-        return pd.DataFrame(lines, columns=['Tag', 'Precision', 'Recall', 'F1', 'support'])
+        return pd.DataFrame(
+            lines, columns=["Tag", "Precision", "Recall", "F1", "support"]
+        )
 
     def align_predictions(self):
 
@@ -193,31 +228,41 @@ class Evaluation:
         flat_preds_list = [item for sublist in preds_list for item in sublist]
 
         seq_report = seq_classification(y_true=truth_list, y_pred=preds_list, digits=4)
-        sk_report = skl_classification(y_true=flat_truth_list, y_pred=flat_preds_list, digits=4)
+        sk_report = skl_classification(
+            y_true=flat_truth_list, y_pred=flat_preds_list, digits=4
+        )
 
         return {
-            'Seqeval':
-
-                {"Precision": seq_precision(y_true=truth_list, y_pred=preds_list, average='micro'),
-                 "Recall": seq_recall(y_true=truth_list, y_pred=preds_list, average='micro'),
-                 "F1": seq_f1(y_true=truth_list, y_pred=preds_list, average='micro'),
-                 "Loss": self.loss,
-                 "classification": self.create_classification_report(seq_report),
-                 "output": {'y_true': truth_list, 'y_pred': preds_list}},
-
-            'Sklearn':
-
-                {"Precision": skl_precision(y_true=flat_truth_list, y_pred=flat_preds_list, average='macro'),
-                 "Recall": skl_recall(y_true=flat_truth_list, y_pred=flat_preds_list, average='macro'),
-                 "F1": skl_f1(y_true=flat_truth_list, y_pred=flat_preds_list, average='macro'),
-                 "Loss": self.loss,
-                 "classification": self.create_classification_report(sk_report),
-                 "output": {'y_true': flat_truth_list, 'y_pred': flat_preds_list}}
+            "Seqeval": {
+                "Precision": seq_precision(
+                    y_true=truth_list, y_pred=preds_list, average="micro"
+                ),
+                "Recall": seq_recall(
+                    y_true=truth_list, y_pred=preds_list, average="micro"
+                ),
+                "F1": seq_f1(y_true=truth_list, y_pred=preds_list, average="micro"),
+                "Loss": self.loss,
+                "classification": self.create_classification_report(seq_report),
+                "output": {"y_true": truth_list, "y_pred": preds_list},
+            },
+            "Sklearn": {
+                "Precision": skl_precision(
+                    y_true=flat_truth_list, y_pred=flat_preds_list, average="macro"
+                ),
+                "Recall": skl_recall(
+                    y_true=flat_truth_list, y_pred=flat_preds_list, average="macro"
+                ),
+                "F1": skl_f1(
+                    y_true=flat_truth_list, y_pred=flat_preds_list, average="macro"
+                ),
+                "Loss": self.loss,
+                "classification": self.create_classification_report(sk_report),
+                "output": {"y_true": flat_truth_list, "y_pred": flat_preds_list},
+            },
         }
 
 
 class FineTuneUtils:
-
     def train_fn(self, data_loader, model, optimizer, device, scheduler, config):
         model.train()
         final_loss = 0
@@ -225,7 +270,7 @@ class FineTuneUtils:
             for k, v in data.items():
                 data[k] = v.to(device)
             outputs = model(**data)
-            loss = outputs['average_loss']
+            loss = outputs["average_loss"]
             # calculate the gradient and we can say loss.grad where the gradient is stored
             loss.backward()
             # item returns the scalar only not the whole tensor
@@ -249,13 +294,19 @@ class FineTuneUtils:
                 for k, v in data.items():
                     data[k] = v.to(device)
                 outputs = model(**data)
-                loss = outputs['average_loss']
-                logits = outputs['logits']
+                loss = outputs["average_loss"]
+                logits = outputs["logits"]
                 final_loss += loss.item()
                 if logits is not None:
-                    preds = logits if preds is None else torch.cat((preds, logits), dim=0)
-                if data['labels'] is not None:
-                    labels = data['labels'] if labels is None else torch.cat((labels, data['labels']), dim=0)
+                    preds = (
+                        logits if preds is None else torch.cat((preds, logits), dim=0)
+                    )
+                if data["labels"] is not None:
+                    labels = (
+                        data["labels"]
+                        if labels is None
+                        else torch.cat((labels, data["labels"]), dim=0)
+                    )
             preds = preds.detach().cpu().numpy()
             labels = labels.cpu().numpy()
             evaluation = Evaluation(labels, preds, inv_labels, final_loss)
@@ -265,16 +316,20 @@ class FineTuneUtils:
 
 class Metrics:
     def __init__(self, metrics) -> None:
-        self.seq_metrics = self.get_metrics(metrics, 'Seqeval')
-        self.skl_metrics = self.get_metrics(metrics, 'Sklearn')
-        self.seq_results, self.seq_report, self.seq_output = self.generate_results(self.seq_metrics)
-        self.skl_results, self.skl_report, self.skl_output = self.generate_results(self.skl_metrics)
+        self.seq_metrics = self.get_metrics(metrics, "Seqeval")
+        self.skl_metrics = self.get_metrics(metrics, "Sklearn")
+        self.seq_results, self.seq_report, self.seq_output = self.generate_results(
+            self.seq_metrics
+        )
+        self.skl_results, self.skl_report, self.skl_output = self.generate_results(
+            self.skl_metrics
+        )
 
     def get_metrics(self, metrics, mode):
         return metrics[mode]
 
     def clean_report(self, report):
-        return report[report['Tag'] != 'accuracy']
+        return report[report["Tag"] != "accuracy"]
 
     def convert_dict(self, dictionary):
         result = {}
@@ -288,15 +343,26 @@ class Metrics:
         return sliced_dict
 
     def generate_results(self, metrics):
-        report = self.clean_report(metrics['classification'])
-        output = metrics['output']
-        results = pd.DataFrame.from_dict(self.convert_dict(self.slice_dictionary(metrics)))
+        report = self.clean_report(metrics["classification"])
+        output = metrics["output"]
+        results = pd.DataFrame.from_dict(
+            self.convert_dict(self.slice_dictionary(metrics))
+        )
         return results, report, output
 
 
 class SaveOutputs:
-    def __init__(self, data, config, train_dataloader, val_dataloader, test_dataloader, train_metrics, val_metrics,
-                 test_metrics) -> None:
+    def __init__(
+        self,
+        data,
+        config,
+        train_dataloader,
+        val_dataloader,
+        test_dataloader,
+        train_metrics,
+        val_metrics,
+        test_metrics,
+    ) -> None:
         self.data = data
         self.config = config
         self.train_dataloader = train_dataloader
@@ -308,16 +374,18 @@ class SaveOutputs:
         self.compute_metrics()
 
     def compute_metrics(self):
-        print('Compute Train Metrics')
+        print("Compute Train Metrics")
         self.train_metrics = Metrics(self.train_metrics)
-        print('Compute Val Metrics')
+        print("Compute Val Metrics")
         self.val_metrics = Metrics(self.val_metrics)
-        print('Compute Test Metrics')
+        print("Compute Test Metrics")
         self.test_metrics = Metrics(self.test_metrics)
 
 
 class Trainer:
-    def __init__(self, corpora, data_name, model_path, tokenizer_path, preprocessor_path) -> None:
+    def __init__(
+        self, corpora, data_name, model_path, tokenizer_path, preprocessor_path
+    ) -> None:
         self.data_name = data_name
         self.config = FineTuneConfig()
         self.model_path = model_path
@@ -330,11 +398,11 @@ class Trainer:
         except KeyError:
             raise ValueError(f"Data name {self.data_name} not found in corpora.")
 
-        self.num_tags = len(self.data['labels'])
+        self.num_tags = len(self.data["labels"])
         self.TOKENIZER, self.PREPROCESSOR = self.load_tokenizer()
-        self.train_dataset, self.train_dataloader = self.load_data('train')
-        self.val_dataset, self.val_dataloader = self.load_data('val')
-        self.test_dataset, self.test_dataloader = self.load_data('test')
+        self.train_dataset, self.train_dataloader = self.load_data("train")
+        self.val_dataset, self.val_dataloader = self.load_data("val")
+        self.test_dataset, self.test_dataloader = self.load_data("test")
 
         self.model = self.load_model()
         self.fine_tune = FineTuneUtils()
@@ -343,16 +411,20 @@ class Trainer:
         dataset = TCDataset(
             texts=[x[1] for x in self.data[mode][:]],
             tags=[x[2] for x in self.data[mode][:]],
-            label_list=self.data['labels'],
+            label_list=self.data["labels"],
             config=self.config,
             tokenizer=self.TOKENIZER,
-            preprocessor=self.PREPROCESSOR)
+            preprocessor=self.PREPROCESSOR,
+        )
 
         data_loader = torch.utils.data.DataLoader(
             dataset=dataset,
             # if the mode is train return the TRAIN_BATCH_SIZE else return VALID_BATCH_SIZE
-            batch_size=self.config.TRAIN_BATCH_SIZE if mode == 'train' else self.config.VALID_BATCH_SIZE,
-            num_workers=2)
+            batch_size=self.config.TRAIN_BATCH_SIZE
+            if mode == "train"
+            else self.config.VALID_BATCH_SIZE,
+            num_workers=2,
+        )
 
         return dataset, data_loader
 
@@ -365,14 +437,14 @@ class Trainer:
 
     def load_tokenizer(self):
         if self.preprocessor_path is not None:
-            print(f'Loading Preprocessor {self.preprocessor_path}')
+            print(f"Loading Preprocessor {self.preprocessor_path}")
             PREPROCESSOR = ArabertPreprocessor(self.preprocessor_path)
         else:
             PREPROCESSOR = None
-        print(f'Loading Tokenizer {self.tokenizer_path}')
+        print(f"Loading Tokenizer {self.tokenizer_path}")
         TOKENIZER = AutoTokenizer.from_pretrained(
             self.tokenizer_path,
-            do_lower_case=(self.tokenizer_path != 'bert-base-multilingual-cased')
+            do_lower_case=(self.tokenizer_path != "bert-base-multilingual-cased"),
         )
 
         return TOKENIZER, PREPROCESSOR
@@ -380,7 +452,7 @@ class Trainer:
     def load_model(self):
         model = TCModel(self.num_tags, self.model_path)
         model.to(self.device)
-        print('MODEL LOADED!')
+        print("MODEL LOADED!")
         param_optimizer = list(model.named_parameters())
         # Bias: An additional parameter in a neural network neuron that allows the activation function to be shifted.
         # Purpose: Provides flexibility, helps in learning complex patterns, and ensures non-zero output.
@@ -400,8 +472,10 @@ class Trainer:
                 "weight_decay": 0.0,
             },
         ]
-        num_train_steps = int(len(self.train_dataset) / self.config.TRAIN_BATCH_SIZE * self.config.EPOCHS)
-        print('Number of training steps: ', num_train_steps)
+        num_train_steps = int(
+            len(self.train_dataset) / self.config.TRAIN_BATCH_SIZE * self.config.EPOCHS
+        )
+        print("Number of training steps: ", num_train_steps)
         """
         Weight decay is a regularization technique used to prevent overfitting by adding a penalty to the loss function based on the size of the weights. It's often implemented as L2 regularization.
         In the context of optimization, weight decay can be thought of as adding a term to the loss function that penalizes large weights:
@@ -419,40 +493,67 @@ class Trainer:
         Warmup Steps: The number of steps for which the learning rate is gradually increased.
         """
         self.scheduler = get_linear_schedule_with_warmup(
-            self.optimizer, num_warmup_steps=int(self.config.WARMUP_RATIO * num_train_steps),
-            num_training_steps=num_train_steps)
+            self.optimizer,
+            num_warmup_steps=int(self.config.WARMUP_RATIO * num_train_steps),
+            num_training_steps=num_train_steps,
+        )
         return model
 
     def train(self):
-        training_loss = self.fine_tune.train_fn(self.train_dataloader, self.model, self.optimizer, self.device,
-                                                self.scheduler, self.config)
+        training_loss = self.fine_tune.train_fn(
+            self.train_dataloader,
+            self.model,
+            self.optimizer,
+            self.device,
+            self.scheduler,
+            self.config,
+        )
         return training_loss
 
     def evaluate(self, dataloader):
-        eval_metrics, eval_loss = self.fine_tune.eval_fn(dataloader, self.model, self.device, self.data['inv_labels'])
+        eval_metrics, eval_loss = self.fine_tune.eval_fn(
+            dataloader, self.model, self.device, self.data["inv_labels"]
+        )
         return eval_metrics, eval_loss
 
     def training_loop(self):
         for epoch in range(self.config.EPOCHS):
             print()
-            print(f'Start Training Epoch:{epoch}')
+            print(f"Start Training Epoch:{epoch}")
             print()
             start_time = current_milli_time()
             training_loss = self.train()
             print()
-            print('Start Train Evaluation')
+            print("Start Train Evaluation")
             train_metrics, train_loss = self.evaluate(self.train_dataloader, epoch)
-            print('Start Val Evaluation')
+            print("Start Val Evaluation")
             val_metrics, val_loss = self.evaluate(self.val_dataloader, epoch)
-            print('Start Test Evaluation')
+            print("Start Test Evaluation")
             test_metrics, test_loss = self.evaluate(self.test_dataloader, epoch)
             # https://towardsdatascience.com/pandas-python-tricks-for-data-science-data-analysis-part-3-462d0e952925
-            print(test_metrics['Seqeval']['classification'].to_markdown(tablefmt='fancy_grid'))
-            print(test_metrics['Sklearn']['classification'].to_markdown(tablefmt='fancy_grid'))
+            print(
+                test_metrics["Seqeval"]["classification"].to_markdown(
+                    tablefmt="fancy_grid"
+                )
+            )
+            print(
+                test_metrics["Sklearn"]["classification"].to_markdown(
+                    tablefmt="fancy_grid"
+                )
+            )
 
             print(
-                f"Training Loss = {training_loss}  Train Loss = {train_loss} Val Loss = {val_loss} Test Loss = {test_loss} ")
+                f"Training Loss = {training_loss}  Train Loss = {train_loss} Val Loss = {val_loss} Test Loss = {test_loss} "
+            )
             end_time = current_milli_time()
             print(f"End Training Time: {round((end_time - start_time) / 60000, 3)} ms")
-        return SaveOutputs(self.data, self.config, self.train_dataloader, self.val_dataloader, self.test_dataloader,
-                           train_metrics, val_metrics, test_metrics)
+        return SaveOutputs(
+            self.data,
+            self.config,
+            self.train_dataloader,
+            self.val_dataloader,
+            self.test_dataloader,
+            train_metrics,
+            val_metrics,
+            test_metrics,
+        )
