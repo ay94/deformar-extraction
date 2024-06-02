@@ -123,11 +123,19 @@ share/python-wheels/
 sdist/
 
 # Additional ignores for your specific files
-/dependency_links.txt
-/PKG-INFO
-/requires.txt
-/SOURCES.txt
-/top_level.txt
+dependency_links.txt
+PKG-INFO
+requires.txt
+SOURCES.txt
+top_level.txt
 
 # Optional: You can also ignore the entire directory if not needed
-/experiment_utils.egg-info/
+experiment_utils.egg-info/
+
+# Ignore Cython files
+*.c
+*.so
+*.pyd
+*.pyx
+*.pxd
+__pycache__/

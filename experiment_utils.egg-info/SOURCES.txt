@@ -11,7 +11,6 @@ experiment_utils.egg-info/SOURCES.txt
 experiment_utils.egg-info/dependency_links.txt
 experiment_utils.egg-info/requires.txt
 experiment_utils.egg-info/top_level.txt
-tests/test_data_extractor.py
-tests/test_label_probabilities.py
-tests/test_token_id_strings.py
+tests/test_generate_corpora.py
+tests/test_import.py
 tests/test_utils.py
