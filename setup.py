@@ -12,7 +12,7 @@ setup(
         'arabert',
         'asttokens',
         'certifi',
-        'charset',-'normalizer',
+        'charset-normalizer',
         'comm',
         'debugpy',
         'decorator',
