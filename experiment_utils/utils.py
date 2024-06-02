@@ -134,13 +134,8 @@ class GenerateData:
         logging.info('Initializing datasets')
         corpora = {}
 
-        # Initialize ANERCorp_CamelLab with validation split
-        try:
-            corpora['ANERCorp_CamelLab-validation'] = self.generate_anercorp(split_data=True)
-            logging.info('ANERCorp_CamelLab-validation dataset successfully initialized.')
-        except Exception as e:
-            logging.error('Failed to initialize ANERCorp_CamelLab-validation: %s', e)
-            corpora['ANERCorp_CamelLab-validation'] = None
+        
+        
 
         # Initialize ANERCorp_CamelLab without validation split
         try:
@@ -157,6 +152,14 @@ class GenerateData:
         except Exception as e:
             logging.error('Failed to initialize conll2003: %s', e)
             corpora['conll2003'] = None
+            
+        # Initialize ANERCorp_CamelLab with validation split
+        try:
+            corpora['ANERCorp_CamelLab-validation'] = self.generate_anercorp(split_data=True)
+            logging.info('ANERCorp_CamelLab-validation dataset successfully initialized.')
+        except Exception as e:
+            logging.error('Failed to initialize ANERCorp_CamelLab-validation: %s', e)
+            corpora['ANERCorp_CamelLab-validation'] = None
 
         return corpora
 
@@ -179,6 +182,7 @@ class GenerateData:
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 for line in f:
+                    # import pdb; pdb.set_trace()
                     parts = line.strip().split()
                     if parts:
                         if len(parts) < 2:
@@ -240,8 +244,14 @@ class GenerateData:
             'inv_labels': ner_inv_map
             }
         if validation:  # Include validation set only if it has been created
-            result['validation'] = validation
-
+            result = {
+            'train': train,
+            'validation': validation,
+            'test': test,
+            'labels': list(ner_map.keys()),
+            'labels_map': ner_map, 
+            'inv_labels': ner_inv_map
+            }
         return result
     
     def generate_split_data(self, dataset: Dict[str, Any], split: str, ner_inv_map: Dict[int, str]) -> List[Tuple[int, List[str], List[str]]]:
@@ -262,7 +272,7 @@ class GenerateData:
         sentences = []
         data_split = dataset.get(split, [])
         if not data_split:
-            logging.error(f"No data found for split: {split}")
+            logging.error("No data found for split: %s", split)
             return sentences
 
         logging.info('Generating %s Split', split)
@@ -311,9 +321,25 @@ class GenerateData:
         # Return the datasets along with the NER labels and their mappings
         return {
             'train': datasets['train'], 
-            'val': datasets['val'], 
+            'validation': datasets['val'], 
             'test': datasets['test'], 
             'labels': list(ner_map.keys()), 
             'labels_map': ner_map, 
             'inv_labels': ner_inv_map
         }
+
+
+
+def main():
+    from datasets import load_dataset
+    from experiment_utils import colab, utils
+    logging.basicConfig(level=logging.INFO)
+    local_drive_dir = colab.init('My Drive')
+    data_folder = local_drive_dir / 'Final Year Experiments/Class Imbalance/0_generateExperimentData'
+    fh = utils.FileHandler(data_folder)
+    conll2003_dataset = load_dataset('conll2003', trust_remote_code=True)
+    corpora = fh.load_corpora(conll2003_dataset, 'ANERcorp-CamelLabSplits/ANERCorp_CamelLab')
+
+
+if __name__ == "__main__":
+    main()
