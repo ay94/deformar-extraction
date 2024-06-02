@@ -107,3 +107,27 @@ celerybeat-schedule.*
 # Others
 *.log
 
+# Egg info
+*.egg-info/
+*.egg
+*.eggs
+develop-eggs/
+.eggs-info/
+.installed.cfg
+
+# Build artifacts
+build/
+dist/
+wheels/
+share/python-wheels/
+sdist/
+
+# Additional ignores for your specific files
+/dependency_links.txt
+/PKG-INFO
+/requires.txt
+/SOURCES.txt
+/top_level.txt
+
+# Optional: You can also ignore the entire directory if not needed
+/experiment_utils.egg-info/
