@@ -78,6 +78,6 @@ def test_integration(tmp_path, mock_dataset, mock_data):
     # Generate the conll2003 data
     conll_data = gd.generate_conll2003()
     assert (
-        "train" in conll_data and "val" in conll_data and "test" in conll_data
+        "train" in conll_data and "validation" in conll_data and "test" in conll_data
     ), "CoNLL2003 data generation failed."
     print("CoNLL2003 Data:", conll_data)
