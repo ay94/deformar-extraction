@@ -20,6 +20,7 @@ def mock_data():
     return {
         "train": [{"id": "3", "tokens": ["foo", "bar"], "ner_tags": [0, 1]}],
         "test": [{"id": "4", "tokens": ["baz", "qux"], "ner_tags": [0, 1]}],
+        "validation": [{"id": "5", "tokens": ["test", "validation"], "ner_tags": [0, 1]}]
     }
 
 
@@ -54,8 +55,10 @@ def test_integration(tmp_path, mock_dataset, mock_data):
 
     # Create temporary files and write mock data
     train_file = fh.create_filename("dummy_path_train.txt")
+    validation_file = fh.create_filename("dummy_path_validation.txt")
     test_file = fh.create_filename("dummy_path_test.txt")
     write_data_with_mock(train_file, mock_dataset["train"], mock_data["train"])
+    write_data_with_mock(validation_file, [], mock_data['validation'])
     write_data_with_mock(test_file, mock_dataset["test"], mock_data["test"])
 
     # Initialize GenerateData with the file handler and dataset
