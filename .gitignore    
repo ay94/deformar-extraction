@@ -144,3 +144,7 @@ __pycache__/
 *.cpython-*.pyc
 *.cpython-*.so
 *.cpython-*.pyd
+
+
+experiment_utils.egg-info/
+source
