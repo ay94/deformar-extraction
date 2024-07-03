@@ -148,3 +148,6 @@ __pycache__/
 source
 
 examples/.DS_Store
+
+*.pyc
+__pycache__/
