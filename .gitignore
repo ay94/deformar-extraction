@@ -145,6 +145,6 @@ __pycache__/
 *.cpython-*.so
 *.cpython-*.pyd
 
-
-experiment_utils.egg-info/
 source
+
+examples/.DS_Store
