@@ -254,12 +254,30 @@ class GenerateSplitBatches:
         self.outputs = None  # Initialize the attribute
         self.compute_outputs(results)
 
+    # @staticmethod
+    # def detach_batches(batches):
+    #     for i in range(len(batches)):
+    #         for k, v in batches[i].items():
+    #             batches[i][k] = v.detach().cpu()
+    #     return batches
     @staticmethod
     def detach_batches(batches):
-        for i in range(len(batches)):
-            for k, v in batches[i].items():
-                batches[i][k] = v.detach().cpu()
-        return batches
+        detached_batches = []
+        for batch in batches:
+            if isinstance(batch, dict):
+                # If the batch is a dictionary, detach each tensor in the dictionary.
+                detached_batch = {k: v.detach().cpu() if torch.is_tensor(v) else v for k, v in batch.items()}
+            elif isinstance(batch, torch.Tensor):
+                # If the batch is a single tensor, detach it directly.
+                detached_batch = batch.detach().cpu()
+            elif isinstance(batch, tuple) and all(torch.is_tensor(x) for x in batch):
+                # If the batch is a tuple of tensors (like hidden states), process each tensor.
+                detached_batch = tuple(x.detach().cpu() for x in batch)
+            else:
+                raise TypeError("Unsupported batch type: {}".format(type(batch)))
+            detached_batches.append(detached_batch)
+        return detached_batches
+
 
     @staticmethod
     def load_device():
@@ -286,7 +304,7 @@ class GenerateSplitBatches:
                         "losses": outputs["losses"],
                         "logits": outputs["logits"],
                         "last_hidden_state": outputs["last_hidden_state"],
-                        "hidden_states": outputs["hidden_states"],
+                        # "hidden_states": outputs["hidden_states"],
                     }
                 )
         return batches
