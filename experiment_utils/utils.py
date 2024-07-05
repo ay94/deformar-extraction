@@ -389,7 +389,6 @@ def setup_logging(level=logging.INFO):
     return logger
 
 # Then use it in your script or notebook
-logger = setup_logging()
 
 def main():
     from datasets import load_dataset

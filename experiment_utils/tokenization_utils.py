@@ -15,7 +15,7 @@ from collections import Counter, defaultdict
 import logging
 from tqdm.autonotebook import tqdm
 from collections import defaultdict
-from utils import setup_logging
+from experiment_utils.utils import setup_logging
 
 logger  = setup_logging()
 
