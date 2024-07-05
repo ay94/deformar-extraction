@@ -3,6 +3,8 @@ import logging
 import pickle as pkl
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from datasets import load_dataset
+
 
 import torch
 from sklearn.model_selection import train_test_split
@@ -23,9 +25,9 @@ class FileHandler:
         """Return the full path for a given filename within the project folder."""
         return self.project_folder / file_name
 
-    def load_corpora(self, dataset: Any, path: str) -> Dict[str, Any]:
+    def load_corpora(self, dataset_name: str, path: str) -> Dict[str, Any]:
         """Instantiate and return the corpora from GenerateData using specified dataset and path."""
-        corpora = GenerateData(self, dataset, path)
+        corpora = GenerateData(self, dataset_name, path)
         return corpora.corpora
 
     def save_json(self, path: str, data: Any) -> None:
@@ -110,7 +112,7 @@ class GenerateData:
     It supports operations to read, split, and generate data sets like ANERCorp_CamelLab and conll2003.
     """
 
-    def __init__(self, fh: FileHandler, dataset: Dict[str, Any], path: str) -> None:
+    def __init__(self, fh: FileHandler, dataset_name: str, path: str) -> None:
         """
         Initialize with a file handler, dataset, and path to manage data extraction and processing.
 
@@ -121,7 +123,7 @@ class GenerateData:
         use_validation (bool): Flag to determine whether to include a validation split in the datasets.
         """
         self.fh = fh
-        self.dataset = dataset
+        self.dataset_name = dataset_name
         self.path = path
         self.corpora = self.initialize_datasets()
 
@@ -329,6 +331,7 @@ class GenerateData:
         """
         logging.info("Generating conll2003 dataset")
 
+        dataset = load_dataset(self.dataset_name, trust_remote_code=True)
         # Define NER tag mapping
         ner_map = {
             "O": 0,
@@ -345,9 +348,9 @@ class GenerateData:
 
         # Generate data for each split using helper function
         try:
-            tr = self.generate_split_data(self.dataset, "train", ner_inv_map)
-            vl = self.generate_split_data(self.dataset, "validation", ner_inv_map)
-            te = self.generate_split_data(self.dataset, "test", ner_inv_map)
+            tr = self.generate_split_data(dataset, "train", ner_inv_map)
+            vl = self.generate_split_data(dataset, "validation", ner_inv_map)
+            te = self.generate_split_data(dataset, "test", ner_inv_map)
             datasets = {"train": tr, "val": vl, "test": te}
             logging.info("Successfully generated all splits for conll2003.")
         except Exception as e:
@@ -365,6 +368,29 @@ class GenerateData:
         }
 
 
+import logging
+import sys
+
+def setup_logging(level=logging.INFO):
+    logger = logging.getLogger()
+    if not logger.handlers:  # To ensure no duplicate handlers are added
+        # Create handler that logs to sys.stdout (standard output)
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setLevel(level)  # Adjust the logging level as needed
+
+        # Create formatter and add it to the handler
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+
+        # Add the handler to the logger
+        logger.addHandler(handler)
+
+    logger.setLevel(level)
+    return logger
+
+# Then use it in your script or notebook
+logger = setup_logging()
+
 def main():
     from datasets import load_dataset
 
@@ -381,6 +407,8 @@ def main():
     corpora = fh.load_corpora(
         conll2003_dataset, "ANERcorp-CamelLabSplits/ANERCorp_CamelLab"
     )
+
+
 
 
 if __name__ == "__main__":

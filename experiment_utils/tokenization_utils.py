@@ -15,26 +15,12 @@ from collections import Counter, defaultdict
 import logging
 from tqdm.autonotebook import tqdm
 from collections import defaultdict
-# # Setup logger
-# logger = logging.getLogger()
-# logger.setLevel(logging.INFO)  # You can adjust the loggiåång level
+from utils import setup_logging
 
-# # Create handler that logs to sys.stdout (standard output)
-# handler = logging.StreamHandler(sys.stdout)
-# handler.setLevel(logging.INFO)  # Adjust the logging level as needed
-
-# # Create formatter and add it to the handler
-# formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-# handler.setFormatter(formatter)
-
-# # Add the handler to the logger
-# logger.addHandler(handler)
+logger  = setup_logging()
 
 
 
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 @dataclass
 class TokenizedOutput:
     sentence_index: int
