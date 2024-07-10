@@ -1,3 +1,4 @@
+import sys
 import logging
 from pathlib import Path
 
@@ -23,6 +24,7 @@ def init(local_drives_dir: str = None, account="ahmed.younes.sam@gmail.com") -> 
         ipython = get_ipython()
         if "google.colab" in str(ipython):
             from google.colab import drive
+            setup_logging()
 
             drive.mount("/content/drive", force_remount=True)
             return Path("/content/drive/My Drive/")
@@ -63,3 +65,23 @@ def init(local_drives_dir: str = None, account="ahmed.younes.sam@gmail.com") -> 
             "No valid path found. Ensure that the specified paths are correct."
         )
         return None
+
+
+
+
+def setup_logging(level=logging.INFO):
+    logger = logging.getLogger()
+    if not logger.handlers:  # To ensure no duplicate handlers are added
+        # Create handler that logs to sys.stdout (standard output)
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setLevel(level)  # Adjust the logging level as needed
+
+        # Create formatter and add it to the handler
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+
+        # Add the handler to the logger
+        logger.addHandler(handler)
+
+    logger.setLevel(level)
+    return logger
