@@ -1,15 +1,14 @@
 import logging
 from abc import ABC, abstractmethod
-from collections import Counter, defaultdict
+from collections import  defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List
 
-import pandas as pd
 import yaml
 from arabert.preprocess import ArabertPreprocessor
 from tqdm.autonotebook import tqdm
-from transformers import AutoModel, AutoTokenizer
+from transformers import  AutoTokenizer
 
 
 
@@ -71,7 +70,7 @@ class CoreTokenStrategy(TokenStrategy):
                 ]
             )
         else:
-            logger.warning("No tokens provided for tokenization.")
+            logging.warning("No tokens provided for tokenization.")
 
 
 class AllTokensStrategy(TokenStrategy):
@@ -88,7 +87,7 @@ class AllTokensStrategy(TokenStrategy):
             tokens_data["core_tokens_df"].extend(tokens)
             tokens_data["labels_df"].extend(labels)
         else:
-            logger.warning("No tokens provided for tokenization.")
+            logging.warning("No tokens provided for tokenization.")
 
     def get_labels(
         self, initial_label: str, token_count: int, schema: str
@@ -216,13 +215,13 @@ class TokenizationConfigManager:
         self.preprocessor_path = self.config["preprocessor_path"]
 
     def load_tokenizer(self):
-        logger.info("Loading Tokenizer %s", self.tokenizer_path)
+        logging.info("Loading Tokenizer %s", self.tokenizer_path)
         tokenizer = AutoTokenizer.from_pretrained(
             self.tokenizer_path, do_lower_case=False
         )
         preprocessor = None
         if self.preprocessor_path:
-            logger.info("Loading Preprocessor %s", self.preprocessor_path)
+            logging.info("Loading Preprocessor %s", self.preprocessor_path)
             preprocessor = ArabertPreprocessor(self.preprocessor_path)
         return tokenizer, preprocessor
 
@@ -248,7 +247,7 @@ class DataSplitManager:
         split_outputs = {}
 
         for split in splits_to_process:
-            logger.info("Processing %s split", split)
+            logging.info("Processing %s split", split)
             tokenized_sentences = [
                 tokenized_sentence_dataset
                 for tokenized_sentence_dataset in tqdm(
@@ -274,7 +273,7 @@ class DataSplitManager:
         )
 
     def get_split_subwords(self, split, tokenized_data):
-        logger.info("Extracting %s subwords", split)
+        logging.info("Extracting %s subwords", split)
         subwords = defaultdict(list)
         for tokenized_sentence in tqdm(tokenized_data):
             for token, label in zip(
