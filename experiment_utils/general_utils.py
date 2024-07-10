@@ -1,16 +1,17 @@
-import yaml
 import json
-import pickle
-import torch
-import sys
 import logging
-from pathlib import Path
-import pandas as pd
+import pickle
+import sys
 from abc import ABC, abstractmethod
-from datasets import load_dataset
-
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+import pandas as pd
+import torch
+import yaml
+from datasets import load_dataset
 from sklearn.model_selection import train_test_split
+
 
 class FileHandler:
     """
@@ -21,10 +22,10 @@ class FileHandler:
     def __init__(self, base_folder: Path) -> None:
         """Initialize with the path to the project folder."""
         self.base_folder = Path(base_folder)
-    
+
     @property
     def file_path(self):
-        return self._create_filename('')
+        return self._create_filename("")
 
     def _create_filename(self, file_name: str) -> Path:
         """Return the full path for a given filename within the project folder."""
@@ -112,7 +113,7 @@ class FileHandler:
         except Exception as e:
             logging.error("Failed to load model from %s: %s", file_path, e)
         return None
-    
+
     def to_csv(self, filename: str, data: pd.DataFrame, index: bool = False) -> None:
         """Save DataFrame to a CSV file."""
         file_path = self._create_filename(filename)
@@ -131,12 +132,12 @@ class FileHandler:
         except Exception as e:
             logging.error("Error reading CSV from file: %s: %s", file_path, e)
         return None
-    
+
     def to_json(self, filename: str, data: pd.DataFrame) -> None:
         """Save DataFrame to a Json file."""
         file_path = self._create_filename(filename)
         try:
-            data.to_json(file_path, orient='records', lines=True)
+            data.to_json(file_path, orient="records", lines=True)
         except Exception as e:
             logging.error("Failed to save Json to %s: %s", file_path, e)
 
@@ -150,12 +151,12 @@ class FileHandler:
         except Exception as e:
             logging.error("Error reading Json from file: %s: %s", file_path, e)
         return None
-    
+
     def load_yaml(self, file_name: str):
         """Load data from a YAML file."""
         file_path = self._create_filename(file_name)
         try:
-            with open(file_path, 'r', encoding='utf-8') as file:
+            with open(file_path, "r", encoding="utf-8") as file:
                 return yaml.safe_load(file)
         except FileNotFoundError:
             logging.error("YAML file not found: %s", file_path)
@@ -163,11 +164,14 @@ class FileHandler:
             logging.error("Error parsing YAML file: %s - %s", file_path, e)
         return None
 
+
 import logging
-from pathlib import Path
-from typing import List, Tuple, Dict, Any
 from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import Any, Dict, List, Tuple
+
 from sklearn.model_selection import train_test_split
+
 
 class DatasetStrategy(ABC):
     """Abstract base class for dataset strategies."""
@@ -179,6 +183,7 @@ class DatasetStrategy(ABC):
     @abstractmethod
     def process_data(self) -> Dict[str, Any]:
         pass
+
 
 class ANERCorpStrategy(DatasetStrategy):
     ner_map = {
@@ -219,7 +224,9 @@ class ANERCorpStrategy(DatasetStrategy):
                     parts = line.strip().split()
                     if parts:
                         if len(parts) < 2:
-                            logging.warning("Malformed line in %s: %s", file_path, line.strip())
+                            logging.warning(
+                                "Malformed line in %s: %s", file_path, line.strip()
+                            )
                             continue  # Skip malformed lines
                         words.append(parts[0])
                         tags.append(parts[1])
@@ -244,46 +251,44 @@ class ANERCorpStrategy(DatasetStrategy):
 
         :return: A dictionary containing splits data, label mappings, and inverse label mappings.
         """
-        validation_size = self.config.get('validation_size', None)
-        splits = self.config.get('splits', [])
+        validation_size = self.config.get("validation_size", None)
+        splits = self.config.get("splits", [])
         ner_inv_map = {v: k for k, v in self.ner_map.items()}
         splits_data = {}
 
         # Load each split except validation
         for split in splits:
             splits_data[split] = [
-                {
-                    'id': sentence_id,
-                    'words': sentence[0],
-                    'tags': sentence[1]
-                }
+                {"id": sentence_id, "words": sentence[0], "tags": sentence[1]}
                 for sentence_id, sentence in enumerate(self.load_data(split))
             ]
 
         # If validation_size is specified, split the training data
-        if 'train' in splits_data and validation_size is not None:
-            train_data = splits_data['train']
+        if "train" in splits_data and validation_size is not None:
+            train_data = splits_data["train"]
             train_data, val_data = train_test_split(
                 train_data, test_size=validation_size, random_state=1
             )
-            splits_data['train'] = train_data
-            splits_data['validation'] = val_data
+            splits_data["train"] = train_data
+            splits_data["validation"] = val_data
 
         data = {
-            'splits': splits_data,
-            'labels': list(self.ner_map.keys()),
-            'labels_map': self.ner_map,
-            'inv_map': ner_inv_map,
+            "splits": splits_data,
+            "labels": list(self.ner_map.keys()),
+            "labels_map": self.ner_map,
+            "inv_map": ner_inv_map,
         }
         return data
+
 
 class Conll2003Strategy(DatasetStrategy):
     """
     Strategy for handling the CoNLL-2003 dataset.
 
-    This class implements methods to load and process the CoNLL-2003 dataset, 
+    This class implements methods to load and process the CoNLL-2003 dataset,
     converting it into a structured format suitable for named entity recognition tasks.
     """
+
     ner_map = {
         "O": 0,
         "B-PER": 1,
@@ -295,7 +300,7 @@ class Conll2003Strategy(DatasetStrategy):
         "B-MISC": 7,
         "I-MISC": 8,
     }
-    
+
     def __init__(self, config: Dict[str, Any]) -> None:
         """
         Initializes the Conll2003Strategy with the given configuration.
@@ -303,8 +308,10 @@ class Conll2003Strategy(DatasetStrategy):
         :param config: Configuration dictionary that includes dataset name and other options.
         """
         self.config = config
-        self.conll2003_dataset = load_dataset(self.config.get('dataset_name'), trust_remote_code=True)
-        
+        self.conll2003_dataset = load_dataset(
+            self.config.get("dataset_name"), trust_remote_code=True
+        )
+
     def load_data(self, split: str) -> List[Dict[str, Any]]:
         """
         Loads data for a specified split from the CoNLL-2003 dataset.
@@ -313,7 +320,7 @@ class Conll2003Strategy(DatasetStrategy):
         :return: A list of dictionaries, each containing sentence data with tokens and NER tags.
         """
         logging.info("Generating %s Split", split)
-        return self.conll2003_dataset.get(split, [])       
+        return self.conll2003_dataset.get(split, [])
 
     def process_data(self) -> Dict[str, Any]:
         """
@@ -321,27 +328,30 @@ class Conll2003Strategy(DatasetStrategy):
 
         :return: A dictionary containing splits data, label mappings, and inverse label mappings.
         """
-        splits = self.config.get('splits', [])
+        splits = self.config.get("splits", [])
         ner_inv_map = {v: k for k, v in self.ner_map.items()}
         splits_data = {}
 
         for split in splits:
             splits_data[split] = [
                 {
-                    'id': sentence.get('id'),
-                    'words': sentence.get('tokens'),
-                    'tags': [ner_inv_map.get(tid, "O") for tid in sentence.get('ner_tags')]
+                    "id": sentence.get("id"),
+                    "words": sentence.get("tokens"),
+                    "tags": [
+                        ner_inv_map.get(tid, "O") for tid in sentence.get("ner_tags")
+                    ],
                 }
                 for sentence in self.load_data(split)
             ]
-        
+
         data = {
-            'splits': splits_data,
-            'labels': list(self.ner_map.keys()),
-            'labels_map': self.ner_map,
-            'inv_map': ner_inv_map,
+            "splits": splits_data,
+            "labels": list(self.ner_map.keys()),
+            "labels_map": self.ner_map,
+            "inv_map": ner_inv_map,
         }
         return data
+
 
 class DataManager:
     def __init__(self, config_path: Path) -> None:
@@ -354,32 +364,43 @@ class DataManager:
         self.config = self.file_handler.load_yaml(config_path.name)
         self.validate_configurations(self.config)
 
-    
     def validate_configurations(self, config: Dict[str, Any]) -> None:
         """Validates the dataset configurations loaded from the YAML file."""
-        required_keys = {'strategy', 'splits'}
+        required_keys = {"strategy", "splits"}
         for dataset_name, settings in config.items():
             if settings is None:
-                raise ValueError(f"Configuration for dataset {dataset_name} is missing.")
-            
+                raise ValueError(
+                    f"Configuration for dataset {dataset_name} is missing."
+                )
+
             missing_keys = required_keys - settings.keys()
             if missing_keys:
-                raise ValueError(f"Missing required keys {missing_keys} in dataset {dataset_name} configuration.")
-            
-            if not isinstance(settings.get('splits'), list) or not settings['splits']:
+                raise ValueError(
+                    f"Missing required keys {missing_keys} in dataset {dataset_name} configuration."
+                )
+
+            if not isinstance(settings.get("splits"), list) or not settings["splits"]:
                 raise ValueError(f"No splits defined for dataset {dataset_name}.")
-            
-            if settings['strategy'] == 'file' and 'path' not in settings:
-                raise ValueError(f"No file path defined for dataset {dataset_name} with file strategy.")
-            
-            if settings['strategy'] == 'dataset' and 'dataset_name' not in settings:
-                raise ValueError(f"No dataset name defined for dataset {dataset_name} with dataset strategy.")
-            
-            if 'validation_size' in settings:
-                if not isinstance(settings['validation_size'], (float, int)):
-                    raise ValueError(f"Invalid type for validation_size in dataset {dataset_name}. It must be a float or integer.")
-                if not (0 < settings['validation_size'] < 1):
-                    raise ValueError(f"Validation size must be between 0 and 1 for dataset {dataset_name}.")
+
+            if settings["strategy"] == "file" and "path" not in settings:
+                raise ValueError(
+                    f"No file path defined for dataset {dataset_name} with file strategy."
+                )
+
+            if settings["strategy"] == "dataset" and "dataset_name" not in settings:
+                raise ValueError(
+                    f"No dataset name defined for dataset {dataset_name} with dataset strategy."
+                )
+
+            if "validation_size" in settings:
+                if not isinstance(settings["validation_size"], (float, int)):
+                    raise ValueError(
+                        f"Invalid type for validation_size in dataset {dataset_name}. It must be a float or integer."
+                    )
+                if not (0 < settings["validation_size"] < 1):
+                    raise ValueError(
+                        f"Validation size must be between 0 and 1 for dataset {dataset_name}."
+                    )
 
     def get_strategies(self) -> Dict[str, DatasetStrategy]:
         """
@@ -390,11 +411,15 @@ class DataManager:
         dataset_strategies = {}
         for dataset_name, dataset_config in self.config.items():
             if not dataset_config:
-                raise ValueError(f"Dataset {dataset_name} not found in the configuration.")
-            strategy_type = dataset_config['strategy']
-            if strategy_type == 'file':
-                strategy = ANERCorpStrategy(FileHandler(self.file_handler.file_path), dataset_config)
-            elif strategy_type == 'dataset':
+                raise ValueError(
+                    f"Dataset {dataset_name} not found in the configuration."
+                )
+            strategy_type = dataset_config["strategy"]
+            if strategy_type == "file":
+                strategy = ANERCorpStrategy(
+                    FileHandler(self.file_handler.file_path), dataset_config
+                )
+            elif strategy_type == "dataset":
                 strategy = Conll2003Strategy(dataset_config)
             else:
                 raise ValueError(f"Unknown dataset strategy: {strategy_type}")
@@ -410,27 +435,6 @@ class DataManager:
         corpora = {}
         strategies = self.get_strategies()
         for dataset_name, strategy in strategies.items():
-            logging.info('Processing %s', dataset_name)
+            logging.info("Processing %s", dataset_name)
             corpora[dataset_name] = strategy.process_data()
         return corpora
-
-
-
-# def setup_logging(level=logging.INFO):
-#     logger = logging.getLogger()
-#     if not logger.handlers:  # To ensure no duplicate handlers are added
-#         # Create handler that logs to sys.stdout (standard output)
-#         handler = logging.StreamHandler(sys.stdout)
-#         handler.setLevel(level)  # Adjust the logging level as needed
-
-#         # Create formatter and add it to the handler
-#         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-#         handler.setFormatter(formatter)
-
-#         # Add the handler to the logger
-#         logger.addHandler(handler)
-
-#     logger.setLevel(level)
-#     return logger
-
-
