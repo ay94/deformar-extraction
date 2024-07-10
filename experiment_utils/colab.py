@@ -31,7 +31,7 @@ def init(local_drives_dir: str = None, account="ahmed.younes.sam@gmail.com") -> 
             "Not in Google Colab, proceeding with local or specified directory setup."
         )
     except Exception as e:
-        logging.error(f"Error during initialization: {e}")
+        logging.error("Error during initialization: %s", e)
         raise e
 
     resolved_path = (
@@ -41,11 +41,11 @@ def init(local_drives_dir: str = None, account="ahmed.younes.sam@gmail.com") -> 
     )
 
     if resolved_path.exists():
-        logging.info(f"Using resolved path: {resolved_path}")
+        logging.info("Using resolved path: %s", resolved_path)
         return resolved_path
     else:
         logging.warning(
-            f"Resolved path does not exist, checking alternative paths: {resolved_path}"
+            "Resolved path does not exist, checking alternative paths: %s", resolved_path
         )
         alternative_path = Path("~/Library/CloudStorage").expanduser().resolve()
         if alternative_path.exists():
@@ -56,7 +56,7 @@ def init(local_drives_dir: str = None, account="ahmed.younes.sam@gmail.com") -> 
                     and account in str(child)
                 ):
                     logging.info(
-                        f"Found Google Drive directory for account {account}: {child}"
+                        "Found Google Drive directory for account %s: %s", account, child
                     )
                     return child / local_drives_dir
         logging.error(
