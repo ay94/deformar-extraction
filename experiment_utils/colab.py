@@ -16,9 +16,7 @@ def init(local_drives_dir: str = None, account="ahmed.younes.sam@gmail.com") -> 
     Returns:
         Path: Path to the directory based on the environment.
     """
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-    )
+
 
     try:
         ipython = get_ipython()
