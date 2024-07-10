@@ -94,8 +94,8 @@ class AllTokensStrategy(TokenStrategy):
 
 class TokenizedTextProcessor:
 
-    def __init__(self, texts, tags, max_seq_len, tokenizer, strategy, preprocessor=None):
-        self.texts = texts
+    def __init__(self, words, tags, max_seq_len, tokenizer, strategy, preprocessor=None):
+        self.words = words
         self.tags = tags
         self.max_seq_len = max_seq_len
         self.tokenizer = tokenizer
@@ -104,11 +104,11 @@ class TokenizedTextProcessor:
 
 
     def __len__(self):
-        return len(self.texts)
+        return len(self.words)
 
     def __getitem__(self, index):
         """Get tokenized output for a single text entry based on its index."""
-        text_list = self.texts[index]
+        text_list = self.words[index]
         tags = self.tags[index]
         tokens_data = self._tokenize_and_prepare(text_list, tags, index)
         tokens_data = self._truncate_and_add_special_tokens(tokens_data)
@@ -229,8 +229,8 @@ class DataSplitManager:
 
     def create_split_processor(self, split):
         return TokenizedTextProcessor(
-            texts=[x[1] for x in self.data[split]],
-            tags=[x[2] for x in self.data[split]],
+            words=[x['words'] for x in self.data[split]],
+            tags=[x['tags'] for x in self.data[split]],
             max_seq_len=self.max_seq_len,
             tokenizer=self.tokenizer,
             strategy=self.strategy,
