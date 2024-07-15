@@ -1,8 +1,10 @@
-import sys
 import logging
+import sys
 from pathlib import Path
 
-
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
 def init(local_drives_dir: str = None, account="ahmed.younes.sam@gmail.com") -> Path:
     """
     Initializes the environment by detecting whether it's running in Google Colab or locally.
