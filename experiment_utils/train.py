@@ -465,8 +465,8 @@ class FineTuneUtils:
                 progress_bar.set_postfix({'loss': loss.item()})
 
                 # Detailed logging
-                # if (batch_idx + 1) % args.logging_step == 0:
-                logging.info("Batch %d/%d - Loss: %.4f", batch_idx + 1, len(data_loader), loss.item())
+                if (batch_idx + 1) % args.logging_step == 0:
+                    logging.info("Batch %d/%d - Loss: %.4f", batch_idx + 1, len(data_loader), loss.item())
 
             except Exception as e:
                 logging.error("Error during training at batch %d: %s", batch_idx, str(e))
@@ -504,8 +504,8 @@ class FineTuneUtils:
                 progress_bar.set_postfix({'loss': f"{loss.item():.4f}"})
 
                 # Detailed logging for each logging step
-                # if (batch_idx + 1) % args.logging_step == 0:
-                logging.info("Batch %d/%d - Loss: %.4f", batch_idx + 1, len(data_loader), loss.item())
+                if (batch_idx + 1) % args.logging_step == 0:
+                    logging.info("Batch %d/%d - Loss: %.4f", batch_idx + 1, len(data_loader), loss.item())
 
             preds = preds.detach().cpu().numpy()
             labels = labels.cpu().numpy()
