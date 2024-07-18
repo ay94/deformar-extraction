@@ -245,7 +245,7 @@ class ANERCorpStrategy(DatasetStrategy):
         """
         validation_size = self.config.get("validation_size", None)
         splits = self.config.get("splits", [])
-        ner_inv_map = {v: k for k, v in self.ner_map.items()}
+        # ner_inv_map = {v: k for k, v in self.ner_map.items()}
         splits_data = {}
 
         # Load each split except validation
@@ -268,7 +268,7 @@ class ANERCorpStrategy(DatasetStrategy):
             "splits": splits_data,
             "labels": list(self.ner_map.keys()),
             "labels_map": self.ner_map,
-            "inv_map": ner_inv_map,
+            # "inv_map": ner_inv_map,
         }
         return data
 
@@ -340,7 +340,7 @@ class Conll2003Strategy(DatasetStrategy):
             "splits": splits_data,
             "labels": list(self.ner_map.keys()),
             "labels_map": self.ner_map,
-            "inv_map": ner_inv_map,
+            # "inv_map": ner_inv_map,
         }
         return data
 
