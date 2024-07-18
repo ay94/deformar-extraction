@@ -29,31 +29,13 @@ from sklearn.metrics import f1_score as skl_f1
 
 from torch import nn
 
-@dataclass
-class FineTuneConfig:
-    train_batch_size: int = 16
-    valid_batch_size: int = 8
-    epochs: int = 4
-    splits: int = 4
-    learning_rate: float = 5e-5
-    warmup_ratio: float = 0.1
-    max_grad_norm: float = 1.0
-    accumulation_steps: int = 1
-
-    @staticmethod
-    def from_dict(config_dict):
-        """
-        Create a FineTuneConfig instance from a dictionary of configuration values.
-        This method assumes that the keys in the dictionary match the parameters of the data class exactly.
-        """
-        return FineTuneConfig(**config_dict)
 
 class TCDataset:
     def __init__(self, texts, tags, label_map, config):
         self.texts = texts
         self.tags = tags
         self.label_map = label_map
-        self.max_seq_len = config.get('max_seq_len', 256)
+        self.max_seq_len = config.max_seq_len
         self.tokenizer, self.preprocessor = self.initialize_tokenizer_and_preprocessor(config)
         # Use cross entropy ignore_index as padding label id so that only real label ids contribute to the loss later.
         self.pad_label_id = nn.CrossEntropyLoss().ignore_index
@@ -72,8 +54,8 @@ class TCDataset:
 
         
     def initialize_tokenizer_and_preprocessor(self, config):
-        tokenizer_path = config.get('tokenizer_path')
-        preprocessor_path = config.get('preprocessor_path')
+        tokenizer_path = config.tokenizer_path
+        preprocessor_path = config.preprocessor_path
         tokenizer = preprocessor = None
         
         if preprocessor_path:
@@ -179,21 +161,39 @@ class TCDataset:
 
 
 
-# TODO: config to setup the different options in the model
+
 class TCModel(nn.Module):
-    def __init__(self, num_tag, path, dropout_rate=0.3, output_hidden_states=False, output_attentions=False, initialize=False):
+    def __init__(self, num_tags: int, config: dict):
         super(TCModel, self).__init__()
-        self.num_tag = num_tag
-        logging.info("Loading BERT Model from: %s", path)
+        self.num_tags = num_tags
+        self.configure_model(config)
+        
+    def configure_model(self, config):
+        model_path = config.model_path
+        if not model_path:
+            raise ValueError("Model path must be specified in the configuration.")
+
+        enable_attentions = config.enable_attentions
+        enable_hidden_states = config.enable_hidden_states
+        initialize_output_layer = config.initialize_output_layer
+        dropout_rate = config.dropout_rate
+        
+        if not 0 <= dropout_rate <= 1:
+            raise ValueError("Dropout rate must be between 0 and 1.")
+
+        logging.info("Loading BERT Model from: %s", model_path)
         self.bert = AutoModel.from_pretrained(
-            path, output_attentions=output_attentions, output_hidden_states=output_hidden_states
+            model_path, output_attentions=enable_attentions, output_hidden_states=enable_hidden_states
         )
-        self.output_hidden_states = output_hidden_states
-        self.output_attentions = output_attentions
+
+        self.output_attentions = enable_attentions
+        self.output_hidden_states = enable_hidden_states
         self.bert_drop = nn.Dropout(dropout_rate)
-        self.output_layer = nn.Linear(self.bert.config.hidden_size, num_tag)
-        if initialize:
+        self.output_layer = nn.Linear(self.bert.config.hidden_size, self.num_tags)
+
+        if initialize_output_layer:
             self.init_weights()
+
         self.avg_loss = nn.CrossEntropyLoss()
         self.loss_per_item = nn.CrossEntropyLoss(reduction="none")
 
@@ -203,7 +203,7 @@ class TCModel(nn.Module):
 
     def loss_fn(self, output, target, mask):
         active_loss = mask.view(-1) == 1
-        active_logits = output.view(-1, self.num_tag)
+        active_logits = output.view(-1, self.num_tags)
         active_labels = torch.where(
             active_loss, target.view(-1), torch.tensor(self.avg_loss.ignore_index).type_as(target)
         )
@@ -415,56 +415,141 @@ class Metrics:
 
 
 class FineTuneUtils:
-    def train_fn(self, data_loader, model, optimizer, device, scheduler, config):
+    @staticmethod
+    # def train_fn(data_loader, model, optimizer, device, scheduler, args):
+    #     model.train()
+    #     final_loss = 0
+    #     for batch_idx, data in enumerate(tqdm(data_loader, total=len(data_loader))):
+    #         for k, v in data.items():
+    #             data[k] = v.to(device)
+    #         outputs = model(**data)
+    #         loss = outputs["average_loss"]
+    #         # calculate the gradient and we can say loss.grad where the gradient is stored
+    #         loss.backward()
+    #         # item returns the scalar only not the whole tensor
+    #         final_loss += loss.item()
+    #         if (batch_idx + 1) % args.accumulation_steps == 0:                
+    #             torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
+    #             optimizer.step()
+    #             scheduler.step()
+    #             optimizer.zero_grad()
+    #         logging.info("Batch %s: Loss = %s", batch_idx+1 / len(data_loader), loss.item())
+    #     average_loss = final_loss / len(data_loader)
+    #     logging.info("Epoch completed. Average Loss per Batch: %s", average_loss)
+    #     return average_loss
+    @staticmethod
+    def train_fn(data_loader, model, optimizer, device, scheduler, args):
         model.train()
-        final_loss = 0
-        for i, data in enumerate(tqdm(data_loader, total=len(data_loader))):
-            for k, v in data.items():
-                data[k] = v.to(device)
-            outputs = model(**data)
-            loss = outputs["average_loss"]
-            # calculate the gradient and we can say loss.grad where the gradient is stored
-            loss.backward()
-            # item returns the scalar only not the whole tensor
-            final_loss += loss.item()
-            if (i + 1) % config.ACCUMULATION_STEPS == 0:
-                # Gradient accumulation is a technique used when the effective batch size is larger than the memory capacity of the GPU. Instead of updating the model parameters after every mini-batch, gradients are accumulated over multiple mini-batches and then used to update the parameters.
-                # Gradient clipping is a technique used to prevent the exploding gradient problem, where gradients become excessively large during training, leading to unstable updates and convergence issues.
-                torch.nn.utils.clip_grad_norm_(model.parameters(), config.MAX_GRAD_NORM)
-                optimizer.step()
-                scheduler.step()
-                optimizer.zero_grad()
-        return final_loss / len(data_loader)
+        total_loss = 0
+        progress_bar = tqdm(enumerate(data_loader), total=len(data_loader), desc="Training")
 
-    def eval_fn(self, data_loader, model, device, inv_labels):
+        for batch_idx, data in progress_bar:
+            try:
+                # Move data to the appropriate device
+                data = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in data.items()}
+
+                # Forward pass
+                outputs = model(**data)
+                loss = outputs["average_loss"]
+
+                # Backward and optimize
+                loss.backward()
+                if (batch_idx + 1) % args.accumulation_steps == 0:
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
+                    optimizer.step()
+                    scheduler.step()
+                    optimizer.zero_grad()
+
+                # Logging and progress update
+                total_loss += loss.item()
+                progress_bar.set_postfix({'loss': loss.item()})
+
+                # Detailed logging
+                # if (batch_idx + 1) % args.logging_step == 0:
+                logging.info("Batch %d/%d - Loss: %.4f", batch_idx + 1, len(data_loader), loss.item())
+
+            except Exception as e:
+                logging.error("Error during training at batch %d: %s", batch_idx, str(e))
+                continue
+
+        average_loss = total_loss / len(data_loader)
+        logging.info("Training completed. Average Loss: %.4f", average_loss)
+        return average_loss
+    
+    @staticmethod
+    def eval_fn(data_loader, model, device, inv_map, args):
         model.eval()
+        total_loss = 0
+        preds = None
+        labels = None
+        progress_bar = tqdm(data_loader, total=len(data_loader), desc="Evaluating")
+        
         with torch.no_grad():
-            final_loss = 0
-            preds = None
-            labels = None
-            for data in tqdm(data_loader, total=len(data_loader)):
-                for k, v in data.items():
-                    data[k] = v.to(device)
+            for batch_idx, data in enumerate(progress_bar):
+                
+                # Move data to the appropriate device
+                data = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in data.items()}
+                
                 outputs = model(**data)
                 loss = outputs["average_loss"]
                 logits = outputs["logits"]
-                final_loss += loss.item()
+                total_loss += loss.item()
+
                 if logits is not None:
-                    preds = (
-                        logits if preds is None else torch.cat((preds, logits), dim=0)
-                    )
+                    preds = logits if preds is None else torch.cat((preds, logits), dim=0)
                 if data["labels"] is not None:
-                    labels = (
-                        data["labels"]
-                        if labels is None
-                        else torch.cat((labels, data["labels"]), dim=0)
-                    )
+                    labels = data["labels"] if labels is None else torch.cat((labels, data["labels"]), dim=0)
+
+                # Set loss for the current batch in the progress bar
+                progress_bar.set_postfix({'loss': f"{loss.item():.4f}"})
+
+                # Detailed logging for each logging step
+                # if (batch_idx + 1) % args.logging_step == 0:
+                logging.info("Batch %d/%d - Loss: %.4f", batch_idx + 1, len(data_loader), loss.item())
+
             preds = preds.detach().cpu().numpy()
             labels = labels.cpu().numpy()
-            # TODO: connecting the dots once the workflow is complete we can figure out how ot handle this
-            # evaluator = Evaluation(model_outputs.data['inv_labels'], labels, preds, final_loss)
-            # results = evaluator.generate_results()
-            # metrics = Metrics.from_dict(results)
-            # evaluation = Evaluation(labels, preds, inv_labels, final_loss)
-            # metrics = evaluation.compute_metrics()
-        # return metrics, final_loss
+            average_loss = total_loss / len(data_loader)
+            logging.info("Evaluation completed. Average Loss per Batch: %.4f", average_loss)
+
+            evaluator = Evaluation(inv_map, labels, preds, average_loss)
+            results = evaluator.generate_results()
+            metrics = Metrics.from_dict(results)
+
+        return metrics, average_loss
+
+    # def eval_fn(data_loader, model, device, inv_map):
+    #     model.eval()
+    #     with torch.no_grad():
+    #         final_loss = 0
+    #         preds = None
+    #         labels = None
+    #         for data in tqdm(data_loader, total=len(data_loader)):
+    #             for k, v in data.items():
+    #                 data[k] = v.to(device)
+    #             outputs = model(**data)
+    #             loss = outputs["average_loss"]
+    #             logits = outputs["logits"]
+    #             final_loss += loss.item()
+    #             if logits is not None:
+    #                 preds = (
+    #                     logits if preds is None else torch.cat((preds, logits), dim=0)
+    #                 )
+    #             if data["labels"] is not None:
+    #                 labels = (
+    #                     data["labels"]
+    #                     if labels is None
+    #                     else torch.cat((labels, data["labels"]), dim=0)
+    #                 )
+    #         preds = preds.detach().cpu().numpy()
+    #         labels = labels.cpu().numpy()
+    #         average_loss = final_loss / len(data_loader)
+    #         logging.info("Evaluation completed. Average Loss per Batch: %s", average_loss)
+
+    #         evaluator = Evaluation(inv_map, labels, preds, final_loss)
+    #         results = evaluator.generate_results()
+    #         metrics = Metrics.from_dict(results)
+    #     return metrics, average_loss
+        
+        
+        
