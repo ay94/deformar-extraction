@@ -1,7 +1,6 @@
 import json
 import logging
 import pickle
-import sys
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -164,13 +163,6 @@ class FileHandler:
             logging.error("Error parsing YAML file: %s - %s", file_path, e)
         return None
 
-
-import logging
-from abc import ABC, abstractmethod
-from pathlib import Path
-from typing import Any, Dict, List, Tuple
-
-from sklearn.model_selection import train_test_split
 
 
 class DatasetStrategy(ABC):
