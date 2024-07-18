@@ -245,8 +245,8 @@ class TCModel(nn.Module):
 
 
 class EvaluationStrategy(ABC):
-    def __init__(self, inv_label_map):
-        self.inv_label_map = inv_label_map
+    def __init__(self, inv_map):
+        self.inv_map = inv_map
         self.ignore_index = nn.CrossEntropyLoss().ignore_index
 
     def align_predictions(self, preds, truth):
@@ -259,8 +259,8 @@ class EvaluationStrategy(ABC):
         for i in range(batch_size):
             for j in range(seq_len):
                 if truth[i, j] != self.ignore_index:
-                    truth_list[i].append(self.inv_label_map[truth[i][j]])
-                    preds_list[i].append(self.inv_label_map[preds[i][j]])
+                    truth_list[i].append(self.inv_map[truth[i][j]])
+                    preds_list[i].append(self.inv_map[preds[i][j]])
         return truth_list, preds_list
 
     def create_classification_report(self, results):
