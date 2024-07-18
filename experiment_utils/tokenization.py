@@ -223,10 +223,10 @@ class TokenStrategyFactory:
     
     def get_params(self):
         """Validate the configuration and retrieve the appropriate tokenization strategy."""
-        strategy = self.config.get("strategy", {})
-        strategy_type = strategy.get("type")
-        index = strategy.get("index")
-        schema = strategy.get("schema")
+        strategy = self.config.strategy
+        strategy_type = strategy.type
+        index = strategy.index
+        schema = strategy.schema
 
         # Validate the configuration
         valid_types = ["core", "all"]  # Define valid strategy types
