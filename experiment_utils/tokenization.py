@@ -342,14 +342,39 @@ class TokenizedTextProcessor:
                     tokens_data[key] = [cls_token] + tokens_data[key] + [sep_token]
 
 
+# class TokenizationConfigManager:
+#     """Manage loading and configuration of tokenizers and preprocessors."""
+
+#     def __init__(self, config_path):
+#         self.config_path = config_path
+#         self.config = self.load_config()
+#         self.tokenizer_path = self.config["tokenizer_path"]
+#         self.preprocessor_path = self.config["preprocessor_path"]
+
+#     def load_tokenizer(self):
+#         logging.info("Loading Tokenizer %s", self.tokenizer_path)
+#         tokenizer = AutoTokenizer.from_pretrained(
+#             self.tokenizer_path, do_lower_case=False
+#         )
+#         preprocessor = None
+#         if self.preprocessor_path:
+#             logging.info("Loading Preprocessor %s", self.preprocessor_path)
+#             preprocessor = ArabertPreprocessor(self.preprocessor_path)
+#         return tokenizer, preprocessor
+
+#     def load_config(self):
+#         with open(self.config_path, "r") as file:
+#             # Load the YAML content from the file
+#             data = yaml.safe_load(file)
+#             return data
+
 class TokenizationConfigManager:
     """Manage loading and configuration of tokenizers and preprocessors."""
 
-    def __init__(self, config_path):
-        self.config_path = config_path
-        self.config = self.load_config()
-        self.tokenizer_path = self.config["tokenizer_path"]
-        self.preprocessor_path = self.config["preprocessor_path"]
+    def __init__(self, config):
+        self.config = config
+        self.tokenizer_path = self.config.tokenizer_path
+        self.preprocessor_path = self.config.preprocessor_path
 
     def load_tokenizer(self):
         logging.info("Loading Tokenizer %s", self.tokenizer_path)
@@ -361,12 +386,6 @@ class TokenizationConfigManager:
             logging.info("Loading Preprocessor %s", self.preprocessor_path)
             preprocessor = ArabertPreprocessor(self.preprocessor_path)
         return tokenizer, preprocessor
-
-    def load_config(self):
-        with open(self.config_path, "r") as file:
-            # Load the YAML content from the file
-            data = yaml.safe_load(file)
-            return data
 
 
 class DataSplitManager:
@@ -423,25 +442,23 @@ class DataSplitManager:
 
 
 class TokenizationWorkflowManager:
-    def __init__(self, data, config_path) -> None:
+    def __init__(self, data, config) -> None:
         self.data = data
-        self.config_path = Path(config_path)
+        self.config = config
         self.processed_data = {}
         self.setup()
         self.generate_tokenized_data()
 
     def setup(self):
         """Set up the tokenization process by loading configurations and preparing managers."""
-        if not self.config_path.exists():
-            logging.error("Configuration file at %s does not exist.", self.config_path)
-            raise FileNotFoundError("The required configuration file is missing.")
+        # if not self.config_path.exists():
+        #     logging.error("Configuration file at %s does not exist.", self.config_path)
+        #     raise FileNotFoundError("The required configuration file is missing.")
 
-        self.config_manager = TokenizationConfigManager(self.config_path)
+        self.config_manager = TokenizationConfigManager(self.config)
         try:
             self.tokenizer, self.preprocessor = self.config_manager.load_tokenizer()
-            self.max_seq_len = self.config_manager.config.get(
-                "max_seq_len", 512
-            )  # Default to a sensible value if not set
+            self.max_seq_len = self.config_manager.config.max_seq_len
             self.strategy = TokenStrategyFactory(self.config_manager.config).get_strategy()
             self.data_manager = DataSplitManager(
                 self.data,
