@@ -1,3 +1,4 @@
+import time
 import torch
 from torch import nn
 import logging
@@ -6,28 +7,17 @@ from arabert.preprocess import ArabertPreprocessor
 from transformers import AutoTokenizer
 from experiment_utils.tokenization import TokenStrategyFactory
 from dataclasses import dataclass, field
-import pandas as pd
 from tqdm.autonotebook import tqdm
 
 import torch
 import logging
 from torch import nn
 from transformers import AutoModel
+from experiment_utils.evaluation import Evaluation, Metrics
+from torch.optim import AdamW
 
 
-
-from abc import ABC, abstractmethod
-import numpy as np
-from seqeval.metrics import classification_report as seq_classification
-from seqeval.metrics import precision_score as seq_precision
-from seqeval.metrics import recall_score as seq_recall
-from seqeval.metrics import f1_score as seq_f1
-from sklearn.metrics import classification_report as skl_classification
-from sklearn.metrics import precision_score as skl_precision
-from sklearn.metrics import recall_score as skl_recall
-from sklearn.metrics import f1_score as skl_f1
-
-from torch import nn
+from transformers import get_linear_schedule_with_warmup
 
 
 class TCDataset:
@@ -63,8 +53,10 @@ class TCDataset:
             preprocessor = ArabertPreprocessor(preprocessor_path)
             
         if tokenizer_path:
-            logging.info("Loading Tokenizer: %s", tokenizer_path)
-            tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, do_lower_case=(tokenizer_path != "bert-base-multilingual-cased"))
+            lower_case = (tokenizer_path == "bert-base-multilingual-cased")
+            logging.info("Loading Tokenizer: %s, lower_case:", tokenizer_path, lower_case)
+            
+            tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, do_lower_case=lower_case)
         
         if not tokenizer:
             raise ValueError("Tokenizer path is not valid or missing.")
@@ -243,253 +235,101 @@ class TCModel(nn.Module):
         self.bert.config.output_attentions = enable
 
 
+class DatasetManager:
+    def __init__(self, corpora, dataset_name, config):
+        self.corpus = self.get_corpus(dataset_name, corpora)
+        self.config = config
 
-class EvaluationStrategy(ABC):
-    def __init__(self, inv_map):
-        self.inv_map = inv_map
-        self.ignore_index = nn.CrossEntropyLoss().ignore_index
+    def get_corpus(self, data_name, corpora):
+        if data_name not in corpora:
+            raise ValueError(f"Data name {data_name} not found in corpora.")
+        return corpora[data_name]
 
-    def align_predictions(self, preds, truth):
-        preds = np.argmax(preds, axis=2)
-        batch_size, seq_len = preds.shape
+    def get_dataset(self, split):
+        self.data = self.corpus['splits']
+        return self.create_dataset(split)
 
-        truth_list = [[] for _ in range(batch_size)]
-        preds_list = [[] for _ in range(batch_size)]
-
-        for i in range(batch_size):
-            for j in range(seq_len):
-                if truth[i, j] != self.ignore_index:
-                    truth_list[i].append(self.inv_map[truth[i][j]])
-                    preds_list[i].append(self.inv_map[preds[i][j]])
-        return truth_list, preds_list
-
-    def create_classification_report(self, results):
-        lines = []
-        for line in results.strip().split("\n")[1:]:
-            if line.strip():
-                tokens = line.split()
-                # Remove intermediate aggregation if exists (multi-class)
-                if len(tokens) > 5:
-                    del tokens[1]
-                lines.append(tokens)
-        report =  pd.DataFrame(lines, columns=["Tag", "Precision", "Recall", "F1", "Support"])
-       
-        return report
-
-    @abstractmethod
-    def compute_metrics(self, true_labels, predictions):
-        pass
+    def create_dataset(self, split):
+        return TCDataset(
+            texts=[x['words'] for x in self.data[split]],
+            tags=[x['tags'] for x in self.data[split]],
+            label_map=self.corpus["labels_map"],
+            config=self.config,
+        )
 
 
-class TokenEvaluationStrategy(EvaluationStrategy):
-    def compute_metrics(self, true_labels, predictions, average_loss):
-        truth_list, preds_list = self.align_predictions(predictions, true_labels)
-        flat_truth = [item for sublist in truth_list for item in sublist]
-        flat_preds = [item for sublist in preds_list for item in sublist]
-        report = skl_classification(y_true=flat_truth, y_pred=flat_preds, digits=7)
-        report = self.create_classification_report(report)
-        cleaned_report = self.clean_report(report)
-        return {
-                "Precision": skl_precision(
-                    y_true=flat_truth, y_pred=flat_preds, average="macro"
-                ),
-                "Recall": skl_recall(
-                    y_true=flat_truth, y_pred=flat_preds, average="macro"
-                ),
-                "F1": skl_f1(
-                    y_true=flat_truth, y_pred=flat_preds, average="macro"
-                ),
-                "Loss": average_loss,
-                "classification": cleaned_report,
-                "output": {"y_true": flat_truth, "y_pred": flat_preds},
-            }
-    def clean_report(self, report):
-        mask = report['Tag'] == 'accuracy'
-        accuracy_row = report[mask]
-        if not accuracy_row.empty:
-            # Get the accuracy value
-            accuracy_value = accuracy_row['Precision'].values[0]  # Assuming accuracy is stored in the 'Precision' column
-            accuracy_support = accuracy_row['Recall'].values[0]  # Assuming accuracy is stored in the 'Precision' column
-
-            # Set the precision, recall, and F1-score to the accuracy value
-            report.loc[mask, 'Precision'] = accuracy_value
-            report.loc[mask, 'Recall'] = accuracy_value
-            report.loc[mask, 'F1'] = accuracy_value
-            report.loc[mask, 'Support'] = accuracy_support	
-
-            # Rename the tag from 'accuracy' to 'accuracy/micro' for clarity
-            report.loc[report['Tag'] == 'accuracy', 'Tag'] = 'accuracy/micro'
-        return report   
+    def get_dataloader(self, split, batch_size, shuffle=False):
+        try:
+            return torch.utils.data.DataLoader(
+                dataset=self.get_dataset(split),
+                batch_size=batch_size,
+                shuffle=shuffle,
+                num_workers=2
+            )
+        except:
+            logging.error("The %s Split Doesn't Exist", split)
+        return None
 
 
-    
-class EntityEvaluationStrategy(EvaluationStrategy):
-    def compute_metrics(self, true_labels, predictions, average_loss):
-        truth_list, preds_list = self.align_predictions(predictions, true_labels)
-        report = seq_classification(y_true=truth_list, y_pred=preds_list, digits=7)
-        return {
-                "Precision": seq_precision(
-                    y_true=truth_list, y_pred=preds_list, average="micro"
-                ),
-                "Recall": seq_recall(
-                    y_true=truth_list, y_pred=preds_list, average="micro"
-                ),
-                "F1": seq_f1(y_true=truth_list, y_pred=preds_list, average="micro"),
-                "Loss": average_loss,
-                "classification": self.create_classification_report(report),
-                "output": {"y_true": truth_list, "y_pred": preds_list},
-            }
-        
-    
-class Evaluation:
-    def __init__(self, inv_map, truths, predictions, average_loss):
-        self.predictions = predictions
-        self.truths = truths
-        self.loss = average_loss
-        self.token_strategy = TokenEvaluationStrategy(inv_map)
-        self.entity_strategy = EntityEvaluationStrategy(inv_map)
+class ModelManager:
+    def __init__(self, num_tags, config):
+        self.num_tags = num_tags
+        self.config = config
 
-    
-    def generate_results(self):
-        metrics = self.evaluate()
-        token_results, token_report, token_outputs = self.prepare_results(metrics['Token_Level'])
-        entity_results, entity_report, entity_outputs = self.prepare_results(metrics['Entity_Level'])
-        
-        return {
-            "token_results": token_results,
-            "token_report": token_report,
-            "token_outputs": token_outputs,
-            "entity_results": entity_results,
-            "entity_report": entity_report,
-            "entity_outputs": entity_outputs
-        }
-        
-    def evaluate(self):
-        token_metrics = self.token_strategy.compute_metrics(self.truths, self.predictions, self.loss)
-        entity_metrics = self.entity_strategy.compute_metrics(self.truths, self.predictions, self.loss)
-        
-        
-        # Combine or store results as needed
-        return {
-            'Token_Level': token_metrics, 
-            'Entity_Level': entity_metrics
-        }
-    
-    
-    def prepare_results(self, metrics):
-        results = pd.DataFrame.from_dict(self.round_and_slice(metrics))
-        report = metrics["classification"]
-        output = metrics["output"]
-        return results, report, output
-    
-    
-    def round_and_slice(self, dictionary):
-        # Slicing and rounding results for cleaner presentation
-        keys_for_slicing = ["Precision", "Recall", "F1", "Loss"]
-        sliced_dict = {key: [round(dictionary[key], 4)] for key in keys_for_slicing}
-        return sliced_dict
+    def configure_model(self):
+        device = self.get_device()
+        model = TCModel(self.num_tags, self.config)
+        model.to(device)
+        self.original_state = model.state_dict()
+        logging.info("Model %s loaded and sent to %s", self.config.model_path, device)
+        return model
 
-@dataclass
-class Metrics:    
-    token_results: pd.DataFrame = field(default_factory=pd.DataFrame)
-    token_report: pd.DataFrame = field(default_factory=pd.DataFrame)
-    token_outputs: dict = field(default_factory=dict)
-    entity_results: pd.DataFrame = field(default_factory=pd.DataFrame)
-    entity_report: pd.DataFrame = field(default_factory=pd.DataFrame)
-    entity_outputs: dict = field(default_factory=dict)
-    
-    @staticmethod
-    def from_dict(data: dict):
-        """Create an instance from a dictionary."""
-        return Metrics(**data)
-    
-    def to_dict(self):
-        return {
-            "token_results": self.token_results.to_dict(orient='records'),
-            "token_report": self.token_report.to_dict(orient='records'),
-            "token_outputs": self.token_outputs,
-            "entity_results": self.entity_results.to_dict(orient='records'),
-            "entity_report": self.entity_report.to_dict(orient='records'),
-            "entity_outputs": self.entity_outputs,
-        }
+    def get_device(self):
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    def get_model_parameters(self):
+        model = self.configure_model()
+        return model.named_parameters()
+
+
+
+
+
 
 
 class FineTuneUtils:
-    @staticmethod
-    # def train_fn(data_loader, model, optimizer, device, scheduler, args):
-    #     model.train()
-    #     final_loss = 0
-    #     for batch_idx, data in enumerate(tqdm(data_loader, total=len(data_loader))):
-    #         for k, v in data.items():
-    #             data[k] = v.to(device)
-    #         outputs = model(**data)
-    #         loss = outputs["average_loss"]
-    #         # calculate the gradient and we can say loss.grad where the gradient is stored
-    #         loss.backward()
-    #         # item returns the scalar only not the whole tensor
-    #         final_loss += loss.item()
-    #         if (batch_idx + 1) % args.accumulation_steps == 0:                
-    #             torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
-    #             optimizer.step()
-    #             scheduler.step()
-    #             optimizer.zero_grad()
-    #         logging.info("Batch %s: Loss = %s", batch_idx+1 / len(data_loader), loss.item())
-    #     average_loss = final_loss / len(data_loader)
-    #     logging.info("Epoch completed. Average Loss per Batch: %s", average_loss)
-    #     return average_loss
+  
     @staticmethod
     def train_fn(data_loader, model, optimizer, device, scheduler, args):
         model.train()
         total_loss = 0
-        progress_bar = tqdm(enumerate(data_loader), total=len(data_loader), desc="Training")
+        for batch_idx, data in enumerate(tqdm(data_loader, total=len(data_loader), desc="Training")):
+            data = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in data.items()}
 
-        for batch_idx, data in progress_bar:
-            try:
-                # Move data to the appropriate device
-                data = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in data.items()}
+            outputs = model(**data)
+            loss = outputs["average_loss"]
+            loss.backward()
 
-                # Forward pass
-                outputs = model(**data)
-                loss = outputs["average_loss"]
+            total_loss += loss.item()
 
-                # Backward and optimize
-                loss.backward()
-                if (batch_idx + 1) % args.accumulation_steps == 0:
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
-                    optimizer.step()
-                    scheduler.step()
-                    optimizer.zero_grad()
+            if (batch_idx + 1) % args.accumulation_steps == 0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
+                optimizer.step()
+                scheduler.step()
+                optimizer.zero_grad()
 
-                # Logging and progress update
-                total_loss += loss.item()
-                progress_bar.set_postfix({'loss': loss.item()})
+        return total_loss / len(data_loader)
 
-                # Detailed logging
-                if (batch_idx + 1) % args.logging_step == 0:
-                    logging.info("Batch %d/%d - Loss: %.4f", batch_idx + 1, len(data_loader), loss.item())
-
-            except Exception as e:
-                logging.error("Error during training at batch %d: %s", batch_idx, str(e))
-                continue
-
-        average_loss = total_loss / len(data_loader)
-        logging.info("Training completed. Average Loss: %.4f", average_loss)
-        return average_loss
-    
     @staticmethod
     def eval_fn(data_loader, model, device, inv_map, args):
         model.eval()
-        total_loss = 0
-        preds = None
-        labels = None
-        progress_bar = tqdm(data_loader, total=len(data_loader), desc="Evaluating")
-        
         with torch.no_grad():
-            for batch_idx, data in enumerate(progress_bar):
-                
-                # Move data to the appropriate device
+            total_loss = 0
+            preds = None
+            labels = None
+            for data in tqdm(data_loader, total=len(data_loader), desc="Evaluation"):
                 data = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in data.items()}
-                
+
                 outputs = model(**data)
                 loss = outputs["average_loss"]
                 logits = outputs["logits"]
@@ -500,56 +340,120 @@ class FineTuneUtils:
                 if data["labels"] is not None:
                     labels = data["labels"] if labels is None else torch.cat((labels, data["labels"]), dim=0)
 
-                # Set loss for the current batch in the progress bar
-                progress_bar.set_postfix({'loss': f"{loss.item():.4f}"})
-
-                # Detailed logging for each logging step
-                if (batch_idx + 1) % args.logging_step == 0:
-                    logging.info("Batch %d/%d - Loss: %.4f", batch_idx + 1, len(data_loader), loss.item())
-
             preds = preds.detach().cpu().numpy()
             labels = labels.cpu().numpy()
             average_loss = total_loss / len(data_loader)
-            logging.info("Evaluation completed. Average Loss per Batch: %.4f", average_loss)
 
             evaluator = Evaluation(inv_map, labels, preds, average_loss)
             results = evaluator.generate_results()
             metrics = Metrics.from_dict(results)
 
         return metrics, average_loss
+    
 
-    # def eval_fn(data_loader, model, device, inv_map):
-    #     model.eval()
-    #     with torch.no_grad():
-    #         final_loss = 0
-    #         preds = None
-    #         labels = None
-    #         for data in tqdm(data_loader, total=len(data_loader)):
-    #             for k, v in data.items():
-    #                 data[k] = v.to(device)
-    #             outputs = model(**data)
-    #             loss = outputs["average_loss"]
-    #             logits = outputs["logits"]
-    #             final_loss += loss.item()
-    #             if logits is not None:
-    #                 preds = (
-    #                     logits if preds is None else torch.cat((preds, logits), dim=0)
-    #                 )
-    #             if data["labels"] is not None:
-    #                 labels = (
-    #                     data["labels"]
-    #                     if labels is None
-    #                     else torch.cat((labels, data["labels"]), dim=0)
-    #                 )
-    #         preds = preds.detach().cpu().numpy()
-    #         labels = labels.cpu().numpy()
-    #         average_loss = final_loss / len(data_loader)
-    #         logging.info("Evaluation completed. Average Loss per Batch: %s", average_loss)
+class Trainer:
+    def __init__(self, data_manager, model_manager, args) -> None:
+        self.model = None
+        self.device = None
+        self.optimizer = None
+        self.scheduler = None
+        self.train_dataloader = None
+        self.test_dataloader = None
+        self.validation_dataloader = None
+        self.inv_labels_map = None
+        self.args = args
+        self.data_manager = data_manager
+        self.setup_trainer(model_manager)
 
-    #         evaluator = Evaluation(inv_map, labels, preds, final_loss)
-    #         results = evaluator.generate_results()
-    #         metrics = Metrics.from_dict(results)
-    #     return metrics, average_loss
+    def setup_trainer(self, model_manager):
+        self.model = model_manager.configure_model()
+        self.device = model_manager.get_device()
         
-        
-        
+        self.train_dataloader = self.data_manager.get_dataloader('train', self.args.train_batch_size)
+        self.test_dataloader = self.data_manager.get_dataloader('test', self.args.test_batch_size)
+        self.validation_dataloader = self.data_manager.get_dataloader('validation', self.args.test_batch_size)
+        # Initialize optimizer and scheduler
+        self.setup_optimizer_scheduler(self.model, self.args)
+
+        self.inv_labels_map = {v: k for k, v in self.data_manager.corpus.get('labels_map').items()}
+
+    def setup_optimizer_scheduler(self, model, args):
+        param_optimizer = list(model.named_parameters())
+        no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
+        optimizer_parameters = [
+            {
+                "params": [
+                    p for n, p in param_optimizer if not any(nd in n for nd in no_decay)
+                ],
+                "weight_decay": 0.01,
+            },
+            {
+                "params": [
+                    p for n, p in param_optimizer if any(nd in n for nd in no_decay)
+                ],
+                "weight_decay": 0.0,
+            },
+        ]
+        num_train_steps = int(
+            (len(self.train_dataloader.dataset) / (args.train_batch_size * args.accumulation_steps)) * args.epochs
+        )
+        logging.info(f'num_train_steps:{num_train_steps}')
+
+
+
+        self.optimizer = AdamW(optimizer_parameters, lr=args.learning_rate)
+        self.scheduler = get_linear_schedule_with_warmup(
+            self.optimizer,
+            num_warmup_steps=int(args.warmup_ratio * num_train_steps),
+            num_training_steps=num_train_steps,
+        )
+    def train(self):
+        training_loss = FineTuneUtils.train_fn(
+            self.train_dataloader,
+            self.model,
+            self.optimizer,
+            self.device,
+            self.scheduler,
+            self.args,
+        )
+        return training_loss
+    def evaluate(self, dataloader):
+        eval_metrics, eval_loss = FineTuneUtils.eval_fn(
+            dataloader,
+            self.model,
+            self.device,
+            self.inv_labels_map,
+            self.args
+        )
+        return eval_metrics, eval_loss
+
+    def training_loop(self):
+        for epoch in range(self.args.epochs):
+            logging.info("Start Training Epoch: %s", epoch+1)
+            start_time = time.time()
+            training_loss = self.train()
+
+            logging.info("Start Evaluation")
+            if self.validation_dataloader:
+              logging.info('Validation Split is Available')
+              evaluation_dataloader = self.validation_dataloader
+            else:
+              logging.info('Test Split is Used for Evaluation')
+              evaluation_dataloader = self.test_dataloader
+
+            eval_metrics, eval_loss = self.evaluate(evaluation_dataloader)
+
+            logging.info("Training Loss: %s | Eval Loss: %s", training_loss, eval_loss)
+            elapsed_time = time.time() - start_time
+            logging.info("Epoch completed in %s s", elapsed_time)
+            #  Print token-level metrics
+            logging.info("\nToken-Level Evaluation Metrics:")
+            print(eval_metrics.token_report.to_markdown(index=False, tablefmt="fancy_grid"))
+
+            # Print entity-level metrics
+            logging.info("\nEntity-Level Evaluation Metrics:")
+            print(eval_metrics.entity_report.to_markdown(index=False, tablefmt="fancy_grid"))
+        return eval_metrics
+
+    def cross_validation(self):
+        pass
