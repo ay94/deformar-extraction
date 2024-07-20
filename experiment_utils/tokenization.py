@@ -451,10 +451,6 @@ class TokenizationWorkflowManager:
 
     def setup(self):
         """Set up the tokenization process by loading configurations and preparing managers."""
-        # if not self.config_path.exists():
-        #     logging.error("Configuration file at %s does not exist.", self.config_path)
-        #     raise FileNotFoundError("The required configuration file is missing.")
-
         self.config_manager = TokenizationConfigManager(self.config)
         try:
             self.tokenizer, self.preprocessor = self.config_manager.load_tokenizer()
@@ -486,40 +482,6 @@ class TokenizationWorkflowManager:
             logging.error(
                 "Data Manager is not properly configured due to setup failure."
             )
-
-    # def get_strategy(self, config):
-    #     """Validate the configuration and retrieve the appropriate tokenization strategy."""
-    #     strategy = config.get("strategy", {})
-    #     strategy_type = strategy.get("type")
-    #     index = strategy.get("index")
-    #     schema = strategy.get("schema")
-
-    #     # Validate the configuration
-    #     valid_types = ["core", "all"]  # Define valid strategy types
-    #     if strategy_type not in valid_types:
-    #         logging.error("Invalid or missing strategy type in configuration.")
-    #         raise ValueError("Invalid or missing strategy type in configuration.")
-
-    #     # Prepare parameters based on strategy type
-    #     params = {}
-    #     if strategy_type == "core":
-    #         if index is None:
-    #             logging.error("Missing 'index' for 'core' strategy in configuration.")
-    #             raise ValueError(
-    #                 "Missing 'index' for 'core' strategy in configuration."
-    #             )
-    #         params["index"] = index
-    #     elif strategy_type == "all":
-    #         if schema is None:
-    #             logging.error("Missing 'schema' for 'all' strategy in configuration.")
-    #             raise ValueError(
-    #                 "Missing 'schema' for 'all' strategy in configuration."
-    #             )
-    #         params["schema"] = schema
-    #     # Use the factory to get the appropriate strategy
-    #     strategy_factory = TokenStrategyFactory()
-
-    #     return strategy_factory.get_strategy(strategy_type, **params)
 
     @property
     def train(self):
