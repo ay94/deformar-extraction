@@ -16,6 +16,7 @@ from transformers import AutoModel
 from experiment_utils.evaluation import Evaluation, Metrics
 from torch.optim import AdamW
 
+from torch.utils.data import DataLoader
 
 from transformers import get_linear_schedule_with_warmup
 
@@ -54,7 +55,7 @@ class TCDataset:
             
         if tokenizer_path:
             lower_case = (tokenizer_path == "bert-base-multilingual-cased")
-            logging.info("Loading Tokenizer: %s, lower_case:", tokenizer_path, lower_case)
+            logging.info("Loading Tokenizer: %s, lower_case: %s", tokenizer_path, lower_case)
             
             tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, do_lower_case=lower_case)
         
@@ -260,7 +261,7 @@ class DatasetManager:
 
     def get_dataloader(self, split, batch_size, shuffle=False):
         try:
-            return torch.utils.data.DataLoader(
+            return DataLoader(
                 dataset=self.get_dataset(split),
                 batch_size=batch_size,
                 shuffle=shuffle,
@@ -352,7 +353,7 @@ class FineTuneUtils:
     
 
 class Trainer:
-    def __init__(self, data_manager, model_manager, args) -> None:
+    def __init__(self, data_manager, model_manager, args, use_cross_validation=False) -> None:
         self.model = None
         self.device = None
         self.optimizer = None
@@ -363,6 +364,8 @@ class Trainer:
         self.inv_labels_map = None
         self.args = args
         self.data_manager = data_manager
+        self.use_cross_validation = use_cross_validation
+
         self.setup_trainer(model_manager)
 
     def setup_trainer(self, model_manager):
@@ -397,7 +400,7 @@ class Trainer:
         num_train_steps = int(
             (len(self.train_dataloader.dataset) / (args.train_batch_size * args.accumulation_steps)) * args.epochs
         )
-        logging.info(f'num_train_steps:{num_train_steps}')
+        logging.info('num_train_steps: %s', num_train_steps)
 
 
 
@@ -407,6 +410,13 @@ class Trainer:
             num_warmup_steps=int(args.warmup_ratio * num_train_steps),
             num_training_steps=num_train_steps,
         )
+    def training_loop(self):
+        if self.use_cross_validation:
+            logging.info("Cross Validation")
+            self.cross_validation_loop()
+        else:
+            logging.info("Standard")
+            self.standard_training_loop()
     def train(self):
         training_loss = FineTuneUtils.train_fn(
             self.train_dataloader,
@@ -427,7 +437,7 @@ class Trainer:
         )
         return eval_metrics, eval_loss
 
-    def training_loop(self):
+    def standard_training_loop(self):
         for epoch in range(self.args.epochs):
             logging.info("Start Training Epoch: %s", epoch+1)
             start_time = time.time()
@@ -455,5 +465,69 @@ class Trainer:
             print(eval_metrics.entity_report.to_markdown(index=False, tablefmt="fancy_grid"))
         return eval_metrics
 
-    def cross_validation(self):
-        pass
+    def cross_validation_loop(self):
+        from sklearn.model_selection import KFold
+
+        kf = KFold(n_splits=self.args.splits)
+        for fold, (train_index, val_index) in enumerate(kf.split(self.data_manager.get_dataset('train'))):
+            print(f"\nStarting Fold {fold+1}/{self.args.splits}")
+            # Create dataloaders for the current fold
+            train_subset = torch.utils.data.Subset(self.data_manager.get_dataset('train'), train_index)
+            val_subset = torch.utils.data.Subset(self.data_manager.get_dataset('train'), val_index)
+            self.train_dataloader = DataLoader(train_subset, batch_size=self.args.train_batch_size)
+            self.validation_dataloader = DataLoader(val_subset, batch_size=self.args.test_batch_size)
+
+            # # Optionally reset the model and optimizer if you want a fresh start for each fold
+            # self.model_manager.reset_model()
+            # self.optimizer_scheduler_manager.reset_optimizer_and_scheduler()
+
+            self.standard_training_loop()  # or a separate function if the training loop varies by fold
+
+
+class EarlyStopping:
+    def __init__(self, patience=5, verbose=False, delta=0, path='checkpoint.pt', trace_func=print):
+        """
+        Args:
+            patience (int): How long to wait after last time validation loss improved.
+                            Default: 5
+            verbose (bool): If True, prints a message for each validation loss improvement. 
+                            Default: False
+            delta (float): Minimum change in the monitored quantity to qualify as an improvement.
+                            Default: 0
+            path (str): Path for the checkpoint to be saved to.
+                            Default: 'checkpoint.pt'
+            trace_func (function): trace print function.
+                            Default: print
+        """
+        self.patience = patience
+        self.verbose = verbose
+        self.counter = 0
+        self.best_score = None
+        self.early_stop = False
+        self.val_loss_min = float('inf')
+        self.delta = delta
+        self.path = path
+        self.trace_func = trace_func
+
+    def __call__(self, val_loss, model):
+        score = -val_loss
+
+        if self.best_score is None:
+            self.best_score = score
+            self.save_checkpoint(val_loss, model)
+        elif score < self.best_score + self.delta:
+            self.counter += 1
+            self.trace_func(f'EarlyStopping counter: {self.counter} out of {self.patience}')
+            if self.counter >= self.patience:
+                self.early_stop = True
+        else:
+            self.best_score = score
+            self.save_checkpoint(val_loss, model)
+            self.counter = 0
+
+    def save_checkpoint(self, val_loss, model):
+        """Saves model when validation loss decrease."""
+        if self.verbose:
+            self.trace_func(f'Validation loss decreased ({self.val_loss_min:.6f} --> {val_loss:.6f}).  Saving model ...')
+        torch.save(model.state_dict(), self.path)
+        self.val_loss_min = val_loss
