@@ -456,14 +456,12 @@ class Trainer:
             logging.info("Training Loss: %s | Eval Loss: %s", training_loss, eval_loss)
             elapsed_time = time.time() - start_time
             logging.info("Epoch completed in %s s", elapsed_time)
-            #  Print token-level metrics
             logging.info("\nToken-Level Evaluation Metrics:")
-            print(eval_metrics.token_report.to_markdown(index=False, tablefmt="fancy_grid"))
+            print(eval_metrics.token_results.to_markdown(index=False, tablefmt="fancy_grid"))
 
-            # Print entity-level metrics
             logging.info("\nEntity-Level Evaluation Metrics:")
-            print(eval_metrics.entity_report.to_markdown(index=False, tablefmt="fancy_grid"))
-        return eval_metrics
+            print(eval_metrics.entity_results.to_markdown(index=False, tablefmt="fancy_grid"))
+        
 
     def cross_validation_loop(self):
         from sklearn.model_selection import KFold
