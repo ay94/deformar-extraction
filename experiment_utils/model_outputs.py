@@ -99,17 +99,21 @@ class ModelOutputProcessor:
 
 
 class ModelOutputWorkflowManager:
-    def __init__(self, model, device, data_manager, batch_sizes):
+    def __init__(self, model, device, data_manager, batch_sizes, split=None):
         self.model = model.to(device)
         self.device = device
         self.data_manager = data_manager
         self.batch_sizes = batch_sizes
         self.splits = list(data_manager.corpus['splits'].keys())
         self.model_outputs = {}
-        self.process_model_outputs()
+        self.process_model_outputs(split)
 
-    def process_model_outputs(self):
+    def process_model_outputs(self, split):
         """Process and store model outputs for all configured splits."""
+        if split:
+            logging.info('Specific Split %s being processed', split)
+            self.model_outputs[split] = self.get_split_data(split)
+            return
         for split in self.splits:
             if split in self.batch_sizes:  # Ensure the split has a designated batch size
                 logging.info('Processing %s Split', split)
