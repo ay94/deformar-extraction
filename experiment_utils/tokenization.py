@@ -21,9 +21,9 @@ class TokenizedOutput:
 
     core_tokens_df: List[str] = field(default_factory=list)
     sentence_index_df: List[int] = field(default_factory=list)
+    tokens_df: List[int] = field(default_factory=list)
     word_pieces_df: List[List[str]] = field(default_factory=list)
     words_df: List[str] = field(default_factory=list)
-    word_ids_df: List[int] = field(default_factory=list)
     labels_df: List[str] = field(default_factory=list)
 
     @staticmethod
@@ -286,9 +286,9 @@ class TokenizedTextProcessor:
             "words": [],
             "core_tokens_df": [],
             "sentence_index_df": [],
+            "tokens_df": [],
             "word_pieces_df": [],
             "words_df": [],
-            "word_ids_df": [],
             "labels_df": [],
         }
         for word_id, (word, label) in enumerate(zip(words, tags)):
@@ -309,18 +309,14 @@ class TokenizedTextProcessor:
         """Update tokens data dictionary with new tokens and associated data."""
         if len(tokens) > 0:
             self.strategy.handle_tokens(tokens, label, tokens_data)
-            # tokens_data['core_tokens'].append(tokens[0])
             tokens_data["sentence_index"] = index
             tokens_data["word_pieces"].append(tokens)
             tokens_data["words"].append(word)
-            # tokens_data['labels'].append(label)
 
-            # tokens_data['core_tokens_df'].extend([tokens[0]] + ['IGNORED'] * (len(tokens) - 1))
             tokens_data["sentence_index_df"].extend([index] * len(tokens))
+            tokens_data["tokens_df"].extend(tokens)
             tokens_data["word_pieces_df"].extend([tokens] * len(tokens))
             tokens_data["words_df"].extend([word] * len(tokens))
-            tokens_data["word_ids_df"].extend([word_id] * len(tokens))
-            # tokens_data['labels_df'].extend([label if i == 0 else 'IGNORED' for i in range(len(tokens))])
         return tokens_data
 
     def _truncate_and_add_special_tokens(self, tokens_data):
@@ -339,7 +335,10 @@ class TokenizedTextProcessor:
         for key in tokens_data:
             if key.endswith("df"):
                 if isinstance(tokens_data[key], list):
-                    tokens_data[key] = [cls_token] + tokens_data[key] + [sep_token]
+                    if key!='sentence_index_df':
+                        tokens_data[key] = [cls_token] + tokens_data[key] + [sep_token]
+                    else:
+                        tokens_data[key] = [tokens_data["sentence_index"]] + tokens_data[key] + [tokens_data["sentence_index"]]
 
 
 # class TokenizationConfigManager:
@@ -468,7 +467,7 @@ class TokenizationWorkflowManager:
             raise
 
     def get_split_data(self, split_name):
-        split_data = self.processed_data.get(split_name)
+        split_data = self.processed_data.get(split_name, None)
         if split_data is None:
             logging.warning("%s data is not available.", split_name)
             return {}  # Return an empty dictionary or a default structure
@@ -485,11 +484,25 @@ class TokenizationWorkflowManager:
 
     @property
     def train(self):
-        return self.get_split_data("train")
+        return self.get_split_data("train").get('tokenized_text')
 
     @property
     def test(self):
-        return self.get_split_data("test")
+        return self.get_split_data("test").get('tokenized_text')
+    
+    @property
+    def validation(self):
+        return self.get_split_data("validation").get('tokenized_text')
 
-    def val(self):
-        return self.get_split_data("val")
+
+    @property
+    def train_subwords(self):
+        return self.get_split_data("train").get('subword_index')
+
+    @property
+    def test_subwords(self):
+        return self.get_split_data("test").get('subword_index')
+
+    @property
+    def validation_subwords(self):
+            return self.get_split_data("validation").get('subword_index')
