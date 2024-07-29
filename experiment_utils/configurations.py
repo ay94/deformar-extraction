@@ -122,3 +122,45 @@ class ModelConfig:
 
 
 
+@dataclass
+class UMAPConfig:
+    n_neighbors: int = 15
+    min_dist: float = 0.1
+    metric: str = "cosine"
+    random_state: int = 1
+    verbose: bool = True
+    normalize_embeddings: bool = False
+
+    def set_params(self,
+                   n_neighbors: Optional[int] = None,
+                   min_dist: Optional[float] = None,
+                   metric: Optional[str] = None,
+                   normalize_embeddings: Optional[bool] = None):
+        """Optionally update UMAP parameters."""
+        if n_neighbors is not None:
+            self.n_neighbors = n_neighbors
+        if min_dist is not None:
+            self.min_dist = min_dist
+        if metric is not None:
+            self.metric = metric
+        if normalize_embeddings is not None:
+            self.normalize_embeddings = normalize_embeddings
+
+    @staticmethod
+    def from_dict(config_dict):
+        """Create UMAPConfig from a dictionary."""
+        return UMAPConfig(**config_dict)
+
+    def __post_init__(self):
+        """Validate UMAP configuration to ensure valid settings."""
+        if not isinstance(self.n_neighbors, int) or self.n_neighbors <= 0:
+            raise ValueError("n_neighbors must be a positive integer.")
+        if not isinstance(self.min_dist, float) or self.min_dist < 0:
+            raise ValueError("min_dist must be a non-negative float.")
+        if not isinstance(self.metric, str):
+            raise ValueError("metric must be a string.")
+        if not isinstance(self.verbose, bool):
+            raise ValueError("verbose must be a boolean.")
+        if not isinstance(self.normalize_embeddings, bool):
+            raise ValueError("normalize_embeddings must be a boolean.")
+
