@@ -409,7 +409,10 @@ class DataSplitManager:
                     self.create_split_processor(split)
                 )
             ]
-            subword_index = self.get_split_subwords(split, tokenized_sentences)
+            if split=='train':
+                subword_index = self.get_split_subwords(split, tokenized_sentences)
+            else:
+                subword_index = {}
             split_outputs[split] = {
                 "tokenized_text": tokenized_sentences,
                 "subword_index": subword_index,
@@ -468,7 +471,7 @@ class TokenizationWorkflowManager:
 
     def get_split_data(self, split_name):
         split_data = self.processed_data.get(split_name, None)
-        if split_data is None:
+        if split_data is None or not split_data.get('subword_index'):
             logging.warning("%s data is not available.", split_name)
             return {}  # Return an empty dictionary or a default structure
         return split_data
