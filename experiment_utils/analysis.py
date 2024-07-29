@@ -448,10 +448,10 @@ class PredictionEntropyCalculator:
 
     
     @staticmethod
-    def calculate():
+    def calculate(model_outputs, data):
         """Extract prediction entropy from logits."""
         token_logits = []
-        for sentence in self.model_outputs:
+        for sentence in model_outputs:
             for token in sentence.logits:
                 token_logits.append(token.tolist())
 
@@ -460,10 +460,10 @@ class PredictionEntropyCalculator:
         prediction_entropy = UtilityFunctions.entropy(probabilities_matrix)
         prediction_confidence = [max(prob_scores) for prob_scores in probabilities_matrix]
         prediction_variability = [np.std(prob_scores) for prob_scores in probabilities_matrix]
-        prediction_analysis = pd.DataFrame(probabilities_matrix, columns=self.data["labels_map"])
+        prediction_analysis = pd.DataFrame(probabilities_matrix, columns=data["labels_map"])
         
         prediction_analysis["prediction_entropy"] = prediction_entropy
-        prediction_analysis["prediction_max_entropy"] = UtilityFunctions.max_entropy(len(self.data["labels_map"]))
+        prediction_analysis["prediction_max_entropy"] = UtilityFunctions.max_entropy(len(data["labels_map"]))
         prediction_analysis["confidence"] = prediction_confidence
         prediction_analysis["variability"] = prediction_variability
         return prediction_analysis
