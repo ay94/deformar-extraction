@@ -1029,13 +1029,14 @@ class AnalysisWorkflowManager:
         )
         self.config_manager = config_manager
         self.tokenization_outputs = tokenization_outputs.get_split(split)
-        self.model_outputs = model_outputs.get_split(split)
+        self.model_outputs = model_outputs
         self.data_manager = data_manager
+        self.split = split
 
     def extract_analysis_data(self):
         try:
             analysis_data_extractor = DataExtractor(
-                self.tokenization_outputs, self.model_outputs, self.aligner, self.transformer
+                self.tokenization_outputs.get_split(self.split), self.model_outputs.get_split(self.split), self.aligner, self.transformer
             )
             analysis_df = analysis_data_extractor.to_df()
             flat_data = analysis_data_extractor.extract_features()
