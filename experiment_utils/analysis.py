@@ -1,4 +1,5 @@
 
+import time
 import pandas as pd
 import numpy as np
 import math
@@ -192,6 +193,80 @@ class DataTransformer:
 
 
 
+# @dataclass
+# class DataExtractor:
+#     tokenization_outputs: list = field(default_factory=list)
+#     model_outputs: list = field(default_factory=list)
+#     aligner: LabelAligner = None
+#     transformer: DataTransformer = None
+#     last_hidden_states: torch.Tensor = field(init=False, default=None)
+#     labels: torch.Tensor = field(init=False, default=None)
+#     losses: torch.Tensor = field(init=False, default=None)
+#     token_ids: torch.Tensor = field(init=False, default=None)
+#     words: list = field(init=False, default_factory=list)
+#     tokens: list = field(init=False, default_factory=list)
+#     word_pieces: list = field(init=False, default_factory=list)
+#     core_tokens: list = field(init=False, default_factory=list)
+#     true_labels: list = field(init=False, default_factory=list)
+#     pred_labels: list = field(init=False, default_factory=list)
+#     sentence_ids: list = field(init=False, default_factory=list)
+#     token_positions: list = field(init=False, default_factory=list)
+#     token_selector_id: list = field(init=False, default_factory=list)
+#     agreements: list = field(init=False, default_factory=list)
+#     x: list = field(init=False, default_factory=list)
+#     y: list = field(init=False, default_factory=list)
+
+#     def __post_init__(self):
+#         if self.model_outputs and self.tokenization_outputs:
+#             self.extract_features()
+#         if self.aligner:
+#             self.align_labels()
+#         if self.transformer:
+#             self.apply_umap()
+
+#     def extract_features(self):
+#         """Extract features from the model outputs."""
+#         self.last_hidden_states = torch.cat([s.last_hidden_states for s in self.model_outputs])
+#         self.labels = torch.cat([s.labels for s in self.model_outputs])
+#         self.losses = torch.cat([s.losses for s in self.model_outputs])
+#         self.token_ids = torch.cat([s.input_ids for s in self.model_outputs])
+#         self.words = [word for sentence in self.tokenization_outputs for word in sentence.words_df]
+#         self.tokens = [token for sentence in self.tokenization_outputs for token in sentence.tokens_df]
+#         self.word_pieces = [wp for sentence in self.tokenization_outputs for wp in sentence.word_pieces_df]
+#         self.core_tokens = [ct for sentence in self.tokenization_outputs for ct in sentence.core_tokens_df]
+#         self.true_labels = [label for sentence in self.tokenization_outputs for label in sentence.labels_df]
+#         self.sentence_ids = [index for sentence in self.tokenization_outputs for index in sentence.sentence_index_df]
+#         self.token_positions = [position for sentence in self.tokenization_outputs for position in range(len(sentence.tokens_df))]
+#         self.token_selector_id = [
+#             f"{core_token}@#{token_position}@#{sentence_index}"
+#             for core_token, token_position, sentence_index in
+#             zip(self.core_tokens, self.token_positions, self.sentence_ids)
+#         ]
+#         return self
+
+#     def align_labels(self):
+#         """Align labels according to aligner's method."""
+#         aligned_labels = self.aligner.align_labels()
+#         self.pred_labels = [label for sentence in aligned_labels for label in sentence]
+#         self.agreements = np.array(self.true_labels) == np.array(self.pred_labels)
+#         return self
+
+#     def apply_umap(self):
+#         """Apply dimension reduction using UMAP."""
+#         coordinates = self.transformer.apply_umap(self.last_hidden_states)
+#         self.x, self.y = coordinates
+#         return self
+
+#     def to_dict(self):
+#         """Convert extracted data to a dictionary."""
+#         return asdict(self)
+
+#     def to_df(self):
+#         """Convert data to pandas DataFrame and compute global ID."""
+#         df = pd.DataFrame(self.to_dict())
+#         df['global_id'] = UtilityFunctions.global_ids_from_df(df)
+#         return df
+
 @dataclass
 class DataExtractor:
     tokenization_outputs: list = field(default_factory=list)
@@ -258,13 +333,32 @@ class DataExtractor:
 
     def to_dict(self):
         """Convert extracted data to a dictionary."""
-        return asdict(self)
+        data_dict = {
+            'labels': self.labels,
+            'losses': self.losses,
+            'token_ids': self.token_ids,
+            'words': self.words,
+            'tokens': self.tokens,
+            'word_pieces': self.word_pieces,
+            'core_tokens': self.core_tokens,
+            'true_labels': self.true_labels,
+            'pred_labels': self.pred_labels,
+            'sentence_ids': self.sentence_ids,
+            'token_positions': self.token_positions,
+            'token_selector_id': self.token_selector_id,
+            'x': self.x,
+            'y': self.y,
+            'agreements': self.agreements.tolist(),  # Convert numpy array to list
+            # Exclude last_hidden_states, labels, losses, and token_ids to avoid large data transfer
+        }
+        return data_dict
 
     def to_df(self):
         """Convert data to pandas DataFrame and compute global ID."""
         df = pd.DataFrame(self.to_dict())
         df['global_id'] = UtilityFunctions.global_ids_from_df(df)
         return df
+
 
 
 class UtilityFunctions:
@@ -403,7 +497,84 @@ class TokenConsistencyCalculator:
         return pd.DataFrame(consistency_info)
 
 
-class TokenEntropyCalculator:
+# class TokenEntropyCalculator: 
+#     @staticmethod
+#     def create_subwords_dataframe(subword_index):
+#         """
+#         Transforms subword index into a DataFrame of tokens and their corresponding tags.
+
+#         Args:
+#             subword_index (dict): A dictionary where keys are tokens and values are lists of tags.
+
+#         Returns:
+#             DataFrame: A pandas DataFrame with columns 'token' and 'tag'.
+#         """
+#         if not subword_index:
+#             return pd.DataFrame(columns=["token", "tag"])
+#         subwords_counter = [(subword, tag['tag']) for subword, tags in subword_index.items() for tag in tags]
+#         return pd.DataFrame(subwords_counter, columns=["token", "tag"])
+
+#     @staticmethod
+#     def calculate_tag_counts(subwords_df):
+#         """
+#         Calculates the count of each tag for tokens and computes initial probability contributions.
+
+#         Args:
+#             subwords_df (DataFrame): DataFrame containing token and tag information.
+
+#         Returns:
+#             DataFrame: Updated DataFrame with probability and initial entropy contribution for each tag.
+#         """
+#         token_counts = subwords_df.groupby(["token", "tag"]).size().reset_index(name='count')
+#         token_total = token_counts.groupby(["token"])['count'].sum().reset_index(name='total')
+#         token_specific_prob = pd.merge(token_counts, token_total, on="token")
+#         token_specific_prob['probability'] = token_specific_prob['count'] / token_specific_prob['total']
+#         token_specific_prob['entropy_contribution'] = token_specific_prob['probability'].apply(UtilityFunctions.per_token_entropy)
+#         return token_specific_prob
+
+#     @staticmethod
+#     def calculate_entropy(subwords_df, token_specific_prob):
+#         """
+#         Calculates local and dataset-wide entropy for tokens.
+
+#         Args:
+#             subwords_df (DataFrame): DataFrame containing token and tag information.
+#             token_specific_prob (DataFrame): DataFrame containing calculated probabilities for each tag.
+
+#         Returns:
+#             DataFrame: DataFrame with token entropy values including maximum entropy.
+#         """
+#         num_tags_per_token = subwords_df.groupby('token')['tag'].nunique().reset_index().rename(columns={'tag': 'num_tags'})
+#         num_tags_per_token['token_max_entropy'] = num_tags_per_token['num_tags'].apply(UtilityFunctions.max_entropy)
+        
+#         token_entropy = token_specific_prob.groupby("token")['entropy_contribution'].sum().reset_index().rename(columns={'entropy_contribution': 'local_token_entropy'})
+#         token_entropy = pd.merge(token_entropy, num_tags_per_token[['token', 'token_max_entropy']], on="token")
+        
+#         dataset_total = len(subwords_df)
+#         dataset_prob = subwords_df.groupby(["token", "tag"]).size().div(dataset_total).reset_index(name='dataset_probability')
+#         dataset_prob['dataset_entropy_contribution'] = dataset_prob['dataset_probability'].apply(UtilityFunctions.per_token_entropy)
+#         dataset_entropy = dataset_prob.groupby("token")['dataset_entropy_contribution'].sum().reset_index().rename(columns={'dataset_entropy_contribution': 'dataset_token_entropy'})
+
+#         entropy_df = pd.merge(token_entropy, dataset_entropy, on="token")
+#         return entropy_df
+
+#     @staticmethod
+#     def calculate(subword_index):
+#         """
+#         Main method to calculate token entropy from subword index.
+
+#         Args:
+#             subword_index (dict): Dictionary with token keys and lists of tags as values.
+
+#         Returns:
+#             DataFrame: Final DataFrame with all entropy calculations for tokens.
+#         """
+#         subwords_df = TokenEntropyCalculator.create_subwords_dataframe(subword_index)
+#         token_specific_prob = TokenEntropyCalculator.calculate_tag_counts(subwords_df)
+#         entropy_df = TokenEntropyCalculator.calculate_entropy(subwords_df, token_specific_prob)
+#         return entropy_df
+
+class TokenEntropyCalculator: 
     @staticmethod
     def create_subwords_dataframe(subword_index):
         """
@@ -416,9 +587,9 @@ class TokenEntropyCalculator:
             DataFrame: A pandas DataFrame with columns 'token' and 'tag'.
         """
         if not subword_index:
-            return pd.DataFrame(columns=["token", "tag"])
+            return pd.DataFrame(columns=["train_token", "tag"])
         subwords_counter = [(subword, tag['tag']) for subword, tags in subword_index.items() for tag in tags]
-        return pd.DataFrame(subwords_counter, columns=["token", "tag"])
+        return pd.DataFrame(subwords_counter, columns=["train_token", "tag"])
 
     @staticmethod
     def calculate_tag_counts(subwords_df):
@@ -431,9 +602,9 @@ class TokenEntropyCalculator:
         Returns:
             DataFrame: Updated DataFrame with probability and initial entropy contribution for each tag.
         """
-        token_counts = subwords_df.groupby(["token", "tag"]).size().reset_index(name='count')
-        token_total = token_counts.groupby(["token"])['count'].sum().reset_index(name='total')
-        token_specific_prob = pd.merge(token_counts, token_total, on="token")
+        token_counts = subwords_df.groupby(["train_token", "tag"]).size().reset_index(name='count')
+        token_total = token_counts.groupby(["train_token"])['count'].sum().reset_index(name='total')
+        token_specific_prob = pd.merge(token_counts, token_total, on="train_token")
         token_specific_prob['probability'] = token_specific_prob['count'] / token_specific_prob['total']
         token_specific_prob['entropy_contribution'] = token_specific_prob['probability'].apply(UtilityFunctions.per_token_entropy)
         return token_specific_prob
@@ -450,18 +621,18 @@ class TokenEntropyCalculator:
         Returns:
             DataFrame: DataFrame with token entropy values including maximum entropy.
         """
-        num_tags_per_token = subwords_df.groupby('token')['tag'].nunique().reset_index().rename(columns={'tag': 'num_tags'})
+        num_tags_per_token = subwords_df.groupby('train_token')['tag'].nunique().reset_index().rename(columns={'tag': 'num_tags'})
         num_tags_per_token['token_max_entropy'] = num_tags_per_token['num_tags'].apply(UtilityFunctions.max_entropy)
         
-        token_entropy = token_specific_prob.groupby("token")['entropy_contribution'].sum().reset_index().rename(columns={'entropy_contribution': 'local_token_entropy'})
-        token_entropy = pd.merge(token_entropy, num_tags_per_token[['token', 'token_max_entropy']], on="token")
+        token_entropy = token_specific_prob.groupby("train_token")['entropy_contribution'].sum().reset_index().rename(columns={'entropy_contribution': 'local_token_entropy'})
+        token_entropy = pd.merge(token_entropy, num_tags_per_token[['train_token', 'token_max_entropy']], on="train_token")
         
         dataset_total = len(subwords_df)
-        dataset_prob = subwords_df.groupby(["token", "tag"]).size().div(dataset_total).reset_index(name='dataset_probability')
+        dataset_prob = subwords_df.groupby(["train_token", "tag"]).size().div(dataset_total).reset_index(name='dataset_probability')
         dataset_prob['dataset_entropy_contribution'] = dataset_prob['dataset_probability'].apply(UtilityFunctions.per_token_entropy)
-        dataset_entropy = dataset_prob.groupby("token")['dataset_entropy_contribution'].sum().reset_index().rename(columns={'dataset_entropy_contribution': 'dataset_token_entropy'})
+        dataset_entropy = dataset_prob.groupby("train_token")['dataset_entropy_contribution'].sum().reset_index().rename(columns={'dataset_entropy_contribution': 'dataset_token_entropy'})
 
-        entropy_df = pd.merge(token_entropy, dataset_entropy, on="token")
+        entropy_df = pd.merge(token_entropy, dataset_entropy, on="train_token")
         return entropy_df
 
     @staticmethod
@@ -481,6 +652,75 @@ class TokenEntropyCalculator:
         return entropy_df
 
 
+# class WordEntropyCalculator:
+#     @staticmethod
+#     def create_words_dataframe(data):
+#         """
+#         Transforms a nested data structure into a DataFrame of words and their associated tags.
+
+#         Args:
+#             data (list of dicts): A list where each element is a dict representing a sentence
+#                                   with 'words' and 'tags' as keys.
+
+#         Returns:
+#             DataFrame: A pandas DataFrame with columns 'word', 'tag', and 'sentence_index'.
+#         """
+#         wordsDict = defaultdict(list)
+#         for i, s in enumerate(data):
+#             for w, t in zip(s['words'], s['tags']):
+#                 wordsDict[w].append({'tag': t, 'sentence': i})
+
+#         return pd.DataFrame([
+#             {"word": word, "tag": tag["tag"], "sentence_index": tag["sentence"]}
+#             for word, tags in wordsDict.items()
+#             for tag in tags
+#         ])
+
+#     @staticmethod
+#     def calculate_entropy_components(words_df):
+#         """
+#         Calculates local and dataset-wide entropy components for each word.
+
+#         Args:
+#             words_df (DataFrame): DataFrame containing 'word', 'tag', and 'sentence_index'.
+
+#         Returns:
+#             DataFrame: DataFrame enriched with local and dataset entropy components.
+#         """
+#         # Calculate number of distinct tags per word and maximum entropy
+#         num_tags_per_word = words_df.groupby('word')['tag'].nunique().reset_index().rename(columns={'tag': 'num_tags'})
+#         num_tags_per_word['word_max_entropy'] = num_tags_per_word['num_tags'].apply(UtilityFunctions.max_entropy)
+
+#         # Local entropy: normalize by the number of occurrences of each word
+#         local_probabilities = words_df.groupby(["word", "tag"]).size().div(words_df.groupby("word").size(), axis=0).reset_index(name='local_probability')
+#         local_probabilities['local_entropy_contribution'] = local_probabilities['local_probability'].apply(UtilityFunctions.per_token_entropy)
+#         local_entropy_df = local_probabilities.groupby("word")['local_entropy_contribution'].sum().reset_index().rename(columns={'local_entropy_contribution': 'local_word_entropy'})
+#         local_entropy_df = pd.merge(local_entropy_df, num_tags_per_word[['word', 'word_max_entropy']], on='word')
+
+#         # Dataset-wide entropy: normalize by the total number of tags in the dataset
+#         dataset_probabilities = words_df.groupby(["word", "tag"]).size().div(len(words_df)).reset_index(name='dataset_probability')
+#         dataset_probabilities['dataset_entropy_contribution'] = dataset_probabilities['dataset_probability'].apply(UtilityFunctions.per_token_entropy)
+#         dataset_entropy_df = dataset_probabilities.groupby("word")['dataset_entropy_contribution'].sum().reset_index().rename(columns={'dataset_entropy_contribution': 'dataset_word_entropy'})
+
+#         # Merge local and dataset entropy dataframes
+#         entropy_df = pd.merge(local_entropy_df, dataset_entropy_df, on='word')
+
+#         return entropy_df
+
+#     @staticmethod
+#     def calculate(data):
+#         """
+#         Main method to calculate word entropy from structured input data.
+
+#         Args:
+#             data (list of dicts): Input data with each dict containing 'words' and 'tags' keys.
+
+#         Returns:
+#             DataFrame: Final DataFrame with all word entropy calculations.
+#         """
+#         words_df = WordEntropyCalculator.create_words_dataframe(data)
+#         entropy_df = WordEntropyCalculator.calculate_entropy_components(words_df)
+#         return entropy_df
 
 class WordEntropyCalculator:
     @staticmethod
@@ -501,7 +741,7 @@ class WordEntropyCalculator:
                 wordsDict[w].append({'tag': t, 'sentence': i})
 
         return pd.DataFrame([
-            {"word": word, "tag": tag["tag"], "sentence_index": tag["sentence"]}
+            {"train_word": word, "tag": tag["tag"], "sentence_index": tag["sentence"]}
             for word, tags in wordsDict.items()
             for tag in tags
         ])
@@ -518,22 +758,22 @@ class WordEntropyCalculator:
             DataFrame: DataFrame enriched with local and dataset entropy components.
         """
         # Calculate number of distinct tags per word and maximum entropy
-        num_tags_per_word = words_df.groupby('word')['tag'].nunique().reset_index().rename(columns={'tag': 'num_tags'})
+        num_tags_per_word = words_df.groupby('train_word')['tag'].nunique().reset_index().rename(columns={'tag': 'num_tags'})
         num_tags_per_word['word_max_entropy'] = num_tags_per_word['num_tags'].apply(UtilityFunctions.max_entropy)
 
         # Local entropy: normalize by the number of occurrences of each word
-        local_probabilities = words_df.groupby(["word", "tag"]).size().div(words_df.groupby("word").size(), axis=0).reset_index(name='local_probability')
+        local_probabilities = words_df.groupby(["train_word", "tag"]).size().div(words_df.groupby("train_word").size(), axis=0).reset_index(name='local_probability')
         local_probabilities['local_entropy_contribution'] = local_probabilities['local_probability'].apply(UtilityFunctions.per_token_entropy)
-        local_entropy_df = local_probabilities.groupby("word")['local_entropy_contribution'].sum().reset_index().rename(columns={'local_entropy_contribution': 'local_word_entropy'})
-        local_entropy_df = pd.merge(local_entropy_df, num_tags_per_word[['word', 'word_max_entropy']], on='word')
+        local_entropy_df = local_probabilities.groupby("train_word")['local_entropy_contribution'].sum().reset_index().rename(columns={'local_entropy_contribution': 'local_word_entropy'})
+        local_entropy_df = pd.merge(local_entropy_df, num_tags_per_word[['train_word', 'word_max_entropy']], on='train_word')
 
         # Dataset-wide entropy: normalize by the total number of tags in the dataset
-        dataset_probabilities = words_df.groupby(["word", "tag"]).size().div(len(words_df)).reset_index(name='dataset_probability')
+        dataset_probabilities = words_df.groupby(["train_word", "tag"]).size().div(len(words_df)).reset_index(name='dataset_probability')
         dataset_probabilities['dataset_entropy_contribution'] = dataset_probabilities['dataset_probability'].apply(UtilityFunctions.per_token_entropy)
-        dataset_entropy_df = dataset_probabilities.groupby("word")['dataset_entropy_contribution'].sum().reset_index().rename(columns={'dataset_entropy_contribution': 'dataset_word_entropy'})
+        dataset_entropy_df = dataset_probabilities.groupby("train_word")['dataset_entropy_contribution'].sum().reset_index().rename(columns={'dataset_entropy_contribution': 'dataset_word_entropy'})
 
         # Merge local and dataset entropy dataframes
-        entropy_df = pd.merge(local_entropy_df, dataset_entropy_df, on='word')
+        entropy_df = pd.merge(local_entropy_df, dataset_entropy_df, on='train_word')
 
         return entropy_df
 
@@ -586,7 +826,7 @@ class ClusterAnalysis:
         self.true_labels = analysis_df["true_labels"][self.labels_mask]
         self.pred_labels = analysis_df["pred_labels"][self.labels_mask]
         self.df = pd.DataFrame()
-        self.df['global_ids'] = UtilityFunctions.global_ids_from_df(analysis_df[self.labels_mask]).copy()
+        self.df['global_id'] = UtilityFunctions.global_ids_from_df(analysis_df[self.labels_mask]).copy()
         self.config = config
         
     def normalize_states(self):
@@ -651,59 +891,123 @@ class ClusterAnalysis:
             clustering_results = self.generate_clustering_outputs(k)
             kmeans_metrics[f"k={k}"] = clustering_results
 
-        return average_silhouette_score, kmeans_metrics
+        return average_silhouette_score, kmeans_metrics, self.df
+
+# class DataAnnotator:
+#     def __init__(self, subwords, analysis_data, train_data, model_outputs, labels_map):
+#         self.subwords = subwords
+#         self.analysis_data = analysis_data
+#         self.train_data = train_data
+#         self.model_outputs = model_outputs
+#         self.labels_map = labels_map
+#         self.analysis_df = None
+
+#     def annotate_tokenization_rate(self):
+#         """Annotate the tokenization rate for each word based on the number of subwords."""
+#         self.analysis_df['tokenization_rate'] = self.analysis_df['word_pieces'].apply(lambda x: len(x) if isinstance(x, list) else 0)
+    
+#     def annotate_consistency(self):
+#         logging.info("Annotating consistency...")
+#         consistency_results = TokenConsistencyCalculator.calculate(self.subwords, self.analysis_df)
+#         self.analysis_df = pd.concat([self.analysis_df, consistency_results], axis=1)
+    
+#     def annotate_token_entropy(self):
+#         logging.info("Annotating token entropy...")
+#         token_entropy = TokenEntropyCalculator.calculate(self.subwords)
+#         self.analysis_df = self.analysis_df.merge(token_entropy, left_on='core_tokens', right_on='token', how='left')
+#         self.analysis_df['local_token_entropy'] = self.analysis_df['local_token_entropy'].fillna(-1)
+#         self.analysis_df['token_max_entropy'] = self.analysis_df['token_max_entropy'].fillna(-1)
+#         self.analysis_df['dataset_token_entropy'] = self.analysis_df['dataset_token_entropy'].fillna(-1)
+#         self.analysis_df.drop('token', axis=1, inplace=True)
+    
+#     def annotate_word_entropy(self):
+#         logging.info("Annotating word entropy...")
+#         word_entropy = WordEntropyCalculator.calculate(self.train_data)
+#         self.analysis_df = self.analysis_df.merge(word_entropy, left_on='words', right_on='word', how='left')
+#         self.analysis_df['local_word_entropy'] = self.analysis_df['local_word_entropy'].fillna(-1)
+#         self.analysis_df['word_max_entropy'] = self.analysis_df['word_max_entropy'].fillna(-1)
+#         self.analysis_df['dataset_word_entropy'] = self.analysis_df['dataset_word_entropy'].fillna(-1)
+#         self.analysis_df.drop('word', axis=1, inplace=True)
+    
+#     def annotate_error_types(self):
+#         logging.info("Annotating error types...")
+#         self.analysis_df['error_type'] = self.analysis_df.apply(UtilityFunctions.error_type, axis=1)
+    
+#     def annotate_entity(self):
+#         logging.info("Annotating entity...")
+#         self.analysis_df["tr_entity"] = self.analysis_df["true_labels"].apply(
+#             lambda x: x if x in ["[CLS]", "[SEP]", "IGNORED"] else x.split("-")[-1]
+#         )
+#         self.analysis_df["pr_entity"] = self.analysis_df["pred_labels"].apply(
+#             lambda x: x if x in ["[CLS]", "[SEP]", "IGNORED"] else x.split("-")[-1]
+#         )
+#     def annotate_prediction_entropy(self):
+#         prediction_entropy_df = PredictionEntropyCalculator.calculate(self.model_outputs, self.labels_map)
+#         self.analysis_df.merge(prediction_entropy_df, left_index=True, right_index=True, how='left')
+
+#     def annotate_all(self):
+#         self.analysis_df = self.analysis_data.copy()
+#         self.annotate_consistency()
+#         self.annotate_token_entropy()
+#         self.annotate_word_entropy()
+#         self.annotate_tokenization_rate()
+#         self.annotate_entity()
+#         self.annotate_error_types()
+#         self.annotate_prediction_entropy()
+#         return self.analysis_df
 
 class DataAnnotator:
     def __init__(self, subwords, analysis_data, train_data, model_outputs, labels_map):
         self.subwords = subwords
-        self.train_data = train_data
         self.analysis_data = analysis_data
+        self.train_data = train_data
         self.model_outputs = model_outputs
         self.labels_map = labels_map
         self.analysis_df = None
 
     def annotate_tokenization_rate(self):
         """Annotate the tokenization rate for each word based on the number of subwords."""
-        self.analysis_df['tokenization_rate'] = self.analysis_df['word_pieces'].apply(lambda x: len(x) if isinstance(x, list) else 0)
+        self.analysis_data['tokenization_rate'] = self.analysis_data['word_pieces'].apply(lambda x: len(x) if isinstance(x, list) else 0)
     
     def annotate_consistency(self):
         logging.info("Annotating consistency...")
-        consistency_results = TokenConsistencyCalculator.calculate(self.subwords, self.analysis_df)
-        self.analysis_df = pd.concat([self.analysis_df, consistency_results], axis=1)
+        consistency_results = TokenConsistencyCalculator.calculate(self.subwords, self.analysis_data)
+        self.analysis_data = pd.concat([self.analysis_data, consistency_results], axis=1)
     
     def annotate_token_entropy(self):
         logging.info("Annotating token entropy...")
         token_entropy = TokenEntropyCalculator.calculate(self.subwords)
-        self.analysis_df = self.analysis_df.merge(token_entropy, left_on='core_tokens', right_on='token', how='left')
-        self.analysis_df['local_token_entropy'] = self.analysis_df['local_token_entropy'].fillna(-1)
-        self.analysis_df['token_max_entropy'] = self.analysis_df['token_max_entropy'].fillna(-1)
-        self.analysis_df['dataset_token_entropy'] = self.analysis_df['dataset_token_entropy'].fillna(-1)
-        self.analysis_df.drop('token', axis=1, inplace=True)
+        self.analysis_data = self.analysis_data.merge(token_entropy, left_on='core_tokens', right_on='train_token', how='left')
+        self.analysis_data['local_token_entropy'] = self.analysis_data['local_token_entropy'].fillna(-1)
+        self.analysis_data['token_max_entropy'] = self.analysis_data['token_max_entropy'].fillna(-1)
+        self.analysis_data['dataset_token_entropy'] = self.analysis_data['dataset_token_entropy'].fillna(-1)
+        self.analysis_data.drop('train_token', axis=1, inplace=True)
+
     
     def annotate_word_entropy(self):
         logging.info("Annotating word entropy...")
         word_entropy = WordEntropyCalculator.calculate(self.train_data)
-        self.analysis_df = self.analysis_df.merge(word_entropy, left_on='words', right_on='word', how='left')
-        self.analysis_df['local_word_entropy'] = self.analysis_df['local_word_entropy'].fillna(-1)
-        self.analysis_df['word_max_entropy'] = self.analysis_df['word_max_entropy'].fillna(-1)
-        self.analysis_df['dataset_word_entropy'] = self.analysis_df['dataset_word_entropy'].fillna(-1)
-        self.analysis_df.drop('word', axis=1, inplace=True)
+        self.analysis_data = self.analysis_data.merge(word_entropy, left_on='words', right_on='train_word', how='left')
+        self.analysis_data['local_word_entropy'] = self.analysis_data['local_word_entropy'].fillna(-1)
+        self.analysis_data['word_max_entropy'] = self.analysis_data['word_max_entropy'].fillna(-1)
+        self.analysis_data['dataset_word_entropy'] = self.analysis_data['dataset_word_entropy'].fillna(-1)
+        self.analysis_data.drop('train_word', axis=1, inplace=True)
     
     def annotate_error_types(self):
         logging.info("Annotating error types...")
-        self.analysis_df['error_type'] = self.analysis_df.apply(UtilityFunctions.error_type, axis=1)
+        self.analysis_data['error_type'] = self.analysis_data.apply(UtilityFunctions.error_type, axis=1)
     
     def annotate_entity(self):
         logging.info("Annotating entity...")
-        self.analysis_df["tr_entity"] = self.analysis_df["true_labels"].apply(
+        self.analysis_data["tr_entity"] = self.analysis_data["true_labels"].apply(
             lambda x: x if x in ["[CLS]", "[SEP]", "IGNORED"] else x.split("-")[-1]
         )
-        self.analysis_df["pr_entity"] = self.analysis_df["pred_labels"].apply(
+        self.analysis_data["pr_entity"] = self.analysis_data["pred_labels"].apply(
             lambda x: x if x in ["[CLS]", "[SEP]", "IGNORED"] else x.split("-")[-1]
         )
     def annotate_prediction_entropy(self):
         prediction_entropy_df = PredictionEntropyCalculator.calculate(self.model_outputs, self.labels_map)
-        self.analysis_df.merge(prediction_entropy_df, left_index=True, right_index=True, how='left')
+        self.analysis_data.merge(prediction_entropy_df, left_index=True, right_index=True, how='left')
 
     def annotate_all(self):
         self.analysis_df = self.analysis_data.copy()
@@ -716,6 +1020,66 @@ class DataAnnotator:
         self.annotate_prediction_entropy()
         return self.analysis_df
     
+
+import  logging
+class AnalysisWrokflowManager:
+    def __init__(self, config_manager, results, tokenization_outputs, model_outputs, data_manager):
+        self.transformer = DataTransformer(config_manager.umap_config)
+        self.aligner = LabelAligner(
+            results.entity_outputs['y_pred'].copy(), tokenization_outputs.test
+        )
+        self.config_manager = config_manager
+        self.tokenization_outputs = tokenization_outputs
+        self.model_outputs = model_outputs
+        self.data_manager = data_manager
+
+    def extract_analysis_data(self):
+        try:
+            analysis_data_extractor = DataExtractor(
+                self.tokenization_outputs.test, self.model_outputs.test, self.aligner, self.transformer
+            )
+            analysis_df = analysis_data_extractor.to_df()
+            flat_data = analysis_data_extractor.extract_features()
+            return analysis_df, flat_data
+        except Exception as e:
+            logging.error(f"Error in data extraction: {e}")
+            raise
+
+    def perform_clustering(self, analysis_df, flat_data):
+        try:
+            clustering_analyser = ClusterAnalysis(flat_data, analysis_df, self.config_manager.clustering_config)
+            average_silhouette_score, kmeans_metrics, clustering_df = clustering_analyser.calculate()
+            merged_data = analysis_df.merge(clustering_df, on='global_id', how='left')
+            return merged_data, average_silhouette_score, kmeans_metrics
+        except Exception as e:
+            logging.error(f"Error in clustering analysis: {e}")
+            raise
+
+    def annotate_data(self, merged_data):
+        try:
+            data_annotator = DataAnnotator(
+                self.tokenization_outputs.train_subwords,
+                merged_data,
+                self.data_manager.data.get('train'),
+                self.model_outputs.test,
+                self.data_manager.corpus['labels_map'],
+            )
+            return data_annotator.annotate_all()
+        except Exception as e:
+            logging.error(f"Error in data annotation: {e}")
+            raise
+
+    def run(self):
+        start_time = time.time()
+        analysis_df, flat_data = self.extract_analysis_data()
+        merged_data, average_silhouette_score, kmeans_metrics = self.perform_clustering(analysis_df, flat_data)
+        analysis_data = self.annotate_data(merged_data)
+        end_time = time.time()
+        execution_time = end_time - start_time
+        logging.info(f"Analysis workflow execution time: {execution_time} seconds")
+        return analysis_data, average_silhouette_score, kmeans_metrics
+
+
 
 class Entity:
     def __init__(self, outputs):

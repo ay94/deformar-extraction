@@ -501,6 +501,15 @@ class TokenizationWorkflowManager:
     @property
     def train_subwords(self):
         return self.get_split_data("train").get('subword_index')
+    
+    def get_split(self, split):
+        match split:
+            case "train":
+                return self.train
+            case "test":
+                return self.test
+            case "validation":
+                return self.validation
 
     # @property
     # def test_subwords(self):

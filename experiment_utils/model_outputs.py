@@ -154,3 +154,13 @@ class ModelOutputWorkflowManager:
     def validation(self):
         """Return processed outputs for the validation split."""
         return self.model_outputs.get('validation', [])
+    
+    def get_split(self, split):
+        match split:
+            case "train":
+                return self.train
+            case "test":
+                return self.test
+            case "validation":
+                return self.validation
+
