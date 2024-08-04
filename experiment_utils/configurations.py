@@ -1,7 +1,8 @@
 import logging
-from dataclasses import dataclass
-from typing import Optional, Any, Dict
-
+from dataclasses import dataclass, field
+from typing import Optional, Any, Dict, List
+from experiment_utils.general_utils import FileHandler
+from pathlib import Path
 @dataclass
 class TrainingConfig:
     train_batch_size: int
@@ -46,7 +47,7 @@ class TrainingConfig:
         if self.logging_step < 1:
             logging.error("Invalid logging steps: %s", self.logging_step)
             raise ValueError("Accumulation steps must be at least 1")
-        logging.info("Configuration validated successfully")
+        logging.info("Training Config validated successfully")
 
 
 
@@ -90,6 +91,7 @@ class TokenizationConfig:
             raise ValueError("Invalid strategy type specified")
         if not isinstance(self.strategy.index, int) or self.strategy.index < 0:
             raise ValueError("Strategy index must be a non-negative integer")
+        logging.info("Tokenization Config validated successfully")
 
 
 
@@ -119,6 +121,7 @@ class ModelConfig:
             raise ValueError("enable_hidden_states must be a boolean value")
         if not isinstance(self.initialize_output_layer, bool):
             raise ValueError("initialize_output_layer must be a boolean value")
+        logging.info("Model Config validated successfully")
 
 
 
@@ -163,4 +166,121 @@ class UMAPConfig:
             raise ValueError("verbose must be a boolean.")
         if not isinstance(self.normalize_embeddings, bool):
             raise ValueError("normalize_embeddings must be a boolean.")
+        logging.info("UMAP Config validated successfully")
 
+
+
+@dataclass
+class ClusteringConfig:
+    init_method: str = 'k-means++'
+    n_init: int = 10
+    random_state: int = 1
+    n_clusters: List = field(default_factory=lambda: [3, 4, 9])
+    n_clusters_map: List[Dict] = field(default_factory=lambda: {3: 'boundary', 4: 'entity', 9: 'token'})
+    silhouette_metric: str = 'cosine'
+    norm: str = 'l2'
+
+    def set_params(self,
+                   init_method: Optional[str] = None,
+                   n_init: Optional[int] = None,
+                   random_state: Optional[int] = None,
+                   n_clusters: Optional[List[Dict]] = None,
+                   silhouette_metric: Optional[str] = None,
+                   norm: Optional[str] = None):
+        """Optionally update clustering parameters."""
+        if init_method is not None:
+            self.init_method = init_method
+        if n_init is not None:
+            self.n_init = n_init
+        if random_state is not None:
+            self.random_state = random_state
+        if n_clusters is not None:
+            self.n_clusters = n_clusters
+        if silhouette_metric is not None:
+            self.silhouette_metric = silhouette_metric
+        if norm is not None:
+            self.norm = norm
+
+    @staticmethod
+    def from_dict(config_dict):
+        """Create ClusteringConfig from a dictionary."""
+        
+        return ClusteringConfig(**config_dict)
+
+    def __post_init__(self):
+        """Validate clustering configuration to ensure valid settings."""
+        valid_init_methods = ['k-means++', 'random']
+        if self.init_method not in valid_init_methods:
+            raise ValueError(f"init_method must be one of {valid_init_methods}.")
+        if not isinstance(self.n_init, int) or self.n_init <= 0:
+            raise ValueError("n_init must be a positive integer.")
+        if not isinstance(self.random_state, int):
+            raise ValueError("random_state must be an integer.")
+        if not isinstance(self.n_clusters, list):
+            raise ValueError("n_clusters must be a list int.")
+        if not isinstance(self.n_clusters_map, Dict):
+            raise ValueError("n_clusters must be a list of dictionary.")
+        valid_silhouette_metrics = ['euclidean', 'cosine']
+        if self.silhouette_metric not in valid_silhouette_metrics:
+            raise ValueError(f"silhouette_metric must be one of {valid_silhouette_metrics}.")
+        valid_norms = ['l1', 'l2']
+        if self.norm not in valid_norms:
+            raise ValueError(f"norm must be one of {valid_norms}.")
+        logging.info("Clustering Config validated successfully")
+
+
+@dataclass
+class EvaluationConfig:
+    scheme: Optional[str] = None
+    mode: Optional[str] = None
+
+    def __post_init__(self):
+        self.validate_config()
+
+    @staticmethod
+    def from_dict(config_dict):
+        return EvaluationConfig(**config_dict)
+
+    def validate_config(self):
+        allowed_schemes = ["IOB2", "IOE2", "IOBES"]
+        allowed_modes = [None, "strict"]
+
+        if self.scheme is not None and self.scheme not in allowed_schemes:
+            raise ValueError(f"Scheme must be one of {allowed_schemes} or None")
+        if self.mode not in allowed_modes:
+            raise ValueError(f"Mode must be one of {allowed_modes}")
+        logging.info("Evaluation Config validated successfully")
+
+
+
+class ConfigWorkflowManager:
+    def __init__(self, config_path: Path, file_name: str):
+        config_fh = FileHandler(config_path)
+        self.config = config_fh.load_yaml(file_name)
+    
+    @property
+    def training_config(self) -> TrainingConfig:
+        return TrainingConfig.from_dict(self.config.get('training', {}).get('args', {}))
+    
+    @property
+    def model_config(self) -> ModelConfig:
+        return ModelConfig.from_dict(self.config.get('training', {}).get('model', {}))
+    
+    @property
+    def evaluation_config(self) -> EvaluationConfig:
+        return EvaluationConfig.from_dict(self.config.get('training', {}).get('evaluation', {}))
+    
+    @property
+    def tokenization_config(self) -> TokenizationConfig:
+        return TokenizationConfig.from_dict(self.config.get('extraction', {}).get('tokenization', {}))
+    
+    @property
+    def umap_config(self) -> UMAPConfig:
+        return UMAPConfig.from_dict(self.config.get('extraction', {}).get('umap', {}))
+    
+    @property
+    def clustering_config(self) -> ClusteringConfig:
+        return ClusteringConfig.from_dict(self.config.get('extraction', {}).get('clustering', {}))
+
+
+    

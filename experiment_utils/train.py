@@ -8,16 +8,18 @@ from transformers import AutoTokenizer
 from experiment_utils.tokenization import TokenStrategyFactory
 from dataclasses import dataclass, field
 from tqdm.autonotebook import tqdm
-
+from pathlib import Path
 import torch
 import logging
 from torch import nn
 from transformers import AutoModel
 from experiment_utils.evaluation import Evaluation, Metrics
 from torch.optim import AdamW
+from experiment_utils.general_utils import FileHandler
+from typing import Any, Dict, Union
 
 from torch.utils.data import DataLoader
-
+from experiment_utils.configurations import  TokenizationConfig
 from transformers import get_linear_schedule_with_warmup
 
 
@@ -235,22 +237,101 @@ class TCModel(nn.Module):
         self.output_attentions = enable
         self.bert.config.output_attentions = enable
 
+# class DatasetManager:
+#     def __init__(self, corpora_path, dataset_name, config, corpora_file_name='corpora.json'):
+#         corpora_fh = FileHandler(corpora_path)
+#         self.config = config
+#         self.corpora  = corpora_fh.load_json(corpora_file_name)
+#         self.corpus = self.get_corpus(dataset_name, self.corpora)
+#         self.data = self.corpus['splits']
+        
+
+#     def get_corpus(self, data_name, corpora):
+#         if data_name not in corpora:
+#             raise ValueError(f"Data name {data_name} not found in corpora.")
+#         return corpora[data_name]
+
+#     def get_dataset(self, split):
+#         return self.create_dataset(split)
+
+#     def create_dataset(self, split):
+#         return TCDataset(
+#             texts=[x['words'] for x in self.data[split]],
+#             tags=[x['tags'] for x in self.data[split]],
+#             label_map=self.corpus["labels_map"],
+#             config=self.config,
+#         )
+
+
+#     def get_dataloader(self, split, batch_size, shuffle=False):
+#         try:
+#             return DataLoader(
+#                 dataset=self.get_dataset(split),
+#                 batch_size=batch_size,
+#                 shuffle=shuffle,
+#                 num_workers=2
+#             )
+#         except:
+#             logging.error("The %s Split Doesn't Exist", split)
+#         return None
 
 class DatasetManager:
-    def __init__(self, corpora, dataset_name, config):
-        self.corpus = self.get_corpus(dataset_name, corpora)
-        self.config = config
+    def __init__(self, corpora_path: Path, dataset_name: str, config: TokenizationConfig, corpora_file_name: str = 'corpora.json'):
+        """
+        Initialize the DatasetManager with the path to corpora, dataset name, and configuration.
 
-    def get_corpus(self, data_name, corpora):
+        Args:
+            corpora_path (Path): Path to the directory containing corpora.
+            dataset_name (str): Name of the dataset to use.
+            config (Dict[str, Any]): Configuration dictionary for the dataset.
+            corpora_file_name (str, optional): Name of the corpora JSON file. Defaults to 'corpora.json'.
+        """
+        corpora_fh = FileHandler(corpora_path)
+        self.config = config
+        self.corpora = corpora_fh.load_json(corpora_file_name)
+        self.corpus = self.get_corpus(dataset_name, self.corpora)
+        self.data = self.corpus['splits']
+
+    def get_corpus(self, data_name: str, corpora: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Retrieve the corpus information for the specified dataset name.
+
+        Args:
+            data_name (str): Name of the dataset.
+            corpora (Dict[str, Any]): Dictionary of available corpora.
+
+        Returns:
+            Dict[str, Any]: The corpus information for the specified dataset.
+
+        Raises:
+            ValueError: If the dataset name is not found in the corpora.
+        """
         if data_name not in corpora:
             raise ValueError(f"Data name {data_name} not found in corpora.")
         return corpora[data_name]
 
-    def get_dataset(self, split):
-        self.data = self.corpus['splits']
+    def get_dataset(self, split: str) -> TCDataset:
+        """
+        Retrieve the dataset for a specific split.
+
+        Args:
+            split (str): The split of the dataset ('train', 'test', 'validation').
+
+        Returns:
+            TCDataset: The dataset for the specified split.
+        """
         return self.create_dataset(split)
 
-    def create_dataset(self, split):
+    def create_dataset(self, split: str) -> TCDataset:
+        """
+        Create a TCDataset instance for the specified split.
+
+        Args:
+            split (str): The split of the dataset ('train', 'test', 'validation').
+
+        Returns:
+            TCDataset: The dataset for the specified split.
+        """
         return TCDataset(
             texts=[x['words'] for x in self.data[split]],
             tags=[x['tags'] for x in self.data[split]],
@@ -258,8 +339,18 @@ class DatasetManager:
             config=self.config,
         )
 
+    def get_dataloader(self, split: str, batch_size: int, shuffle: bool = False) -> Union[DataLoader, None]:
+        """
+        Get a DataLoader for the specified split.
 
-    def get_dataloader(self, split, batch_size, shuffle=False):
+        Args:
+            split (str): The split of the dataset ('train', 'test', 'validation').
+            batch_size (int): The batch size for the DataLoader.
+            shuffle (bool, optional): Whether to shuffle the dataset. Defaults to False.
+
+        Returns:
+            Union[DataLoader, None]: The DataLoader for the specified split or None if the split doesn't exist.
+        """
         try:
             return DataLoader(
                 dataset=self.get_dataset(split),
@@ -267,7 +358,7 @@ class DatasetManager:
                 shuffle=shuffle,
                 num_workers=2
             )
-        except:
+        except KeyError:
             logging.error("The %s Split Doesn't Exist", split)
         return None
 
@@ -322,7 +413,7 @@ class FineTuneUtils:
         return total_loss / len(data_loader)
 
     @staticmethod
-    def eval_fn(data_loader, model, device, inv_map, args):
+    def eval_fn(data_loader, model, device, inv_map, evaluation_config):
         model.eval()
         with torch.no_grad():
             total_loss = 0
@@ -345,7 +436,7 @@ class FineTuneUtils:
             labels = labels.cpu().numpy()
             average_loss = total_loss / len(data_loader)
 
-            evaluator = Evaluation(inv_map, labels, preds, average_loss)
+            evaluator = Evaluation(inv_map, labels, preds, average_loss, evaluation_config)
             results = evaluator.generate_results()
             metrics = Metrics.from_dict(results)
 

@@ -471,7 +471,7 @@ class TokenizationWorkflowManager:
 
     def get_split_data(self, split_name):
         split_data = self.processed_data.get(split_name, None)
-        if split_data is None or not split_data.get('subword_index'):
+        if split_data is None or (split_name == 'train' and not split_data.get('subword_index')):
             logging.warning("%s data is not available.", split_name)
             return {}  # Return an empty dictionary or a default structure
         return split_data
@@ -502,10 +502,10 @@ class TokenizationWorkflowManager:
     def train_subwords(self):
         return self.get_split_data("train").get('subword_index')
 
-    @property
-    def test_subwords(self):
-        return self.get_split_data("test").get('subword_index')
+    # @property
+    # def test_subwords(self):
+    #     return self.get_split_data("test").get('subword_index')
 
-    @property
-    def validation_subwords(self):
-            return self.get_split_data("validation").get('subword_index')
+    # @property
+    # def validation_subwords(self):
+    #         return self.get_split_data("validation").get('subword_index')

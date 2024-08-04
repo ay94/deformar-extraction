@@ -99,11 +99,12 @@ class ModelOutputProcessor:
 
 
 class ModelOutputWorkflowManager:
-    def __init__(self, model, device, data_manager, batch_sizes, split=None):
-        self.model = model.to(device)
-        self.device = device
+    def __init__(self, model, data_manager, config, split=None):
+        
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.model = model.to(self.device)
         self.data_manager = data_manager
-        self.batch_sizes = batch_sizes
+        self.config = config
         self.splits = list(data_manager.corpus['splits'].keys())
         self.model_outputs = {}
         self.process_model_outputs(split)
@@ -115,20 +116,29 @@ class ModelOutputWorkflowManager:
             self.model_outputs[split] = self.get_split_data(split)
             return
         for split in self.splits:
-            if split in self.batch_sizes:  # Ensure the split has a designated batch size
+            if self.get_batch_size(split):  # Ensure the split has a designated batch size
                 logging.info('Processing %s Split', split)
                 self.model_outputs[split] = self.get_split_data(split)
             else:
                 logging.warning('%s split is not configured with a batch size.', split)
 
     def get_split_data(self, split):
-        dataloader = self.data_manager.get_dataloader(split, self.batch_sizes[split])
+        batch_size = self.get_batch_size(split)
+        dataloader = self.data_manager.get_dataloader(split, batch_size)
         if dataloader:
             sentences = ModelOutputProcessor(dataloader, self.model, self.device).process_outputs()
             return sentences
         else:
             logging.warning('No data available for %s split, returning empty list.', split)
             return []
+    
+    def get_batch_size(self, split):
+        """Get the batch size for a given split."""
+        return {
+            'train': self.config.train_batch_size,
+            'test': self.config.test_batch_size,
+            'validation': self.config.test_batch_size
+        }.get(split, None)
 
     @property
     def train(self):

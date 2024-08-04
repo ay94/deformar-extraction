@@ -7,11 +7,29 @@ from collections import defaultdict
 from tqdm.autonotebook import tqdm
 import torch
 from dataclasses import dataclass, field, asdict
-
+from sklearn.metrics import silhouette_samples
 from umap import UMAP
 from sklearn.preprocessing import normalize
 import numpy as np
 from typing import Optional
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_samples, homogeneity_completeness_v_measure
+import warnings
+
+import random
+import torch
+from transformers import AutoModel
+from sklearn.metrics import silhouette_samples, homogeneity_completeness_v_measure
+from sklearn.preprocessing import normalize
+import numpy as np
+import pandas as pd
+import plotly.express as px
+from scipy.spatial import distance
+from tqdm.autonotebook import tqdm
+import logging
+from typing import List, Optional, Dict, Tuple
+from experiment_utils.tokenization import TokenizationWorkflowManager
+
 
 class LabelAligner:
     def __init__(self, predictions, tokenized_sentences):
@@ -85,44 +103,132 @@ class DataTransformer:
         )
         return umap_model.fit_transform(data).transpose()
 
+# @dataclass
+# class DataExtractor:
+#     tokenization_outputs: list
+#     model_outputs: list
+#     aligner: LabelAligner
+#     transformer: DataTransformer
+#     last_hidden_states: torch.Tensor = field(init=False)
+#     labels: torch.Tensor = field(init=False)
+#     losses: torch.Tensor = field(init=False)
+#     token_ids: torch.Tensor = field(init=False)
+#     words: list = field(init=False)
+#     tokens: list = field(init=False)
+#     word_pieces: list = field(init=False)
+#     core_tokens: list = field(init=False)
+#     true_labels: list = field(init=False)
+#     pred_labels: list = field(init=False, default_factory=list)
+#     sentence_ids: list = field(init=False)
+#     token_positions: list = field(init=False)
+#     token_selector_id: list = field(init=False)
+#     agreements: list = field(init=False)
+#     x: list = field(init=False)
+#     y: list = field(init=False)
+
+    # def __post_init__(self):
+    #   self.process_data()
+
+    # def process_data(self):
+    #     self.extract_features()
+    #     self.align_labels()
+    #     self.apply_umap()
+        
+    # def extract_features(self):
+    #     """
+    #     Extract features from the model outputs.
+    #     """
+    #     self.last_hidden_states = torch.concat([s.last_hidden_states for s in self.model_outputs])
+    #     self.labels = torch.concat([s.labels for s in self.model_outputs])
+    #     self.losses = torch.concat([s.losses for s in self.model_outputs])
+    #     self.token_ids = torch.concat([s.input_ids for s in self.model_outputs])
+    #     self.words = [word for sentence in self.tokenization_outputs for word in sentence.words_df]
+    #     self.tokens = [token for sentence in self.tokenization_outputs for token in sentence.tokens_df]
+    #     self.word_pieces = [wp for sentence in self.tokenization_outputs for wp in sentence.word_pieces_df]
+    #     self.core_tokens = [ct for sentence in self.tokenization_outputs for ct in sentence.core_tokens_df]
+    #     self.true_labels = [label for sentence in self.tokenization_outputs for label in sentence.labels_df]
+    #     self.sentence_ids = [index for sentence in self.tokenization_outputs for index in sentence.sentence_index_df]
+    #     self.token_positions = [position for sentence in self.tokenization_outputs for position in range(len(sentence.tokens_df))]
+    #     self.token_selector_id = [
+    #         f"{core_token}@#{token_position}@#{sentence_index}"
+    #         for core_token, token_position, sentence_index in
+    #         zip(self.core_tokens, self.token_positions, self.sentence_ids)
+    #     ]
+
+
+    # def align_labels(self):
+    #     aligned_labels = self.aligner.align_labels()
+    #     self.pred_labels = [label for sentence in aligned_labels for label in sentence]
+    #     self.agreements = np.array(self.true_labels) == np.array(self.pred_labels)
+
+    # def apply_umap(self):
+    #     coordinates = self.transformer.apply_umap(self.last_hidden_states)
+    #     self.x, self.y = coordinates
+
+    # def to_dict(self):
+    #     analysis_data = {
+    #         "labels": self.labels,
+    #         "losses": self.losses,
+    #         "token_ids": self.token_ids,
+    #         "words": self.words,
+    #         "tokens": self.tokens,
+    #         "word_pieces": self.word_pieces,
+    #         "core_tokens": self.core_tokens,
+    #         "true_labels": self.true_labels,
+    #         "pred_labels": self.pred_labels,
+    #         "sentence_ids": self.sentence_ids,
+    #         "token_positions": self.token_positions,
+    #         "token_selector_id": self.token_selector_id,
+    #         "agreements": self.agreements,
+    #         "x": self.x,
+    #         "y": self.y
+    #     }
+    #     return analysis_data
+    
+    # def to_df(self):
+    #     df = pd.DataFrame(self.to_dict())
+    #     df['global_id'] = df['token_ids'].astype(str) + "_" + df['sentence_ids'].astype(str) + "_" +  df['token_positions'].astype(str) + "_" + df['labels'].astype(str)
+    #     return df
+
+
+
 @dataclass
 class DataExtractor:
-    tokenization_outputs: list
-    model_outputs: list
-    aligner: LabelAligner
-    transformer: DataTransformer
-    last_hidden_states: torch.Tensor = field(init=False)
-    labels: torch.Tensor = field(init=False)
-    losses: torch.Tensor = field(init=False)
-    token_ids: torch.Tensor = field(init=False)
-    words: list = field(init=False)
-    tokens: list = field(init=False)
-    word_pieces: list = field(init=False)
-    core_tokens: list = field(init=False)
-    true_labels: list = field(init=False)
+    tokenization_outputs: list = field(default_factory=list)
+    model_outputs: list = field(default_factory=list)
+    aligner: LabelAligner = None
+    transformer: DataTransformer = None
+    last_hidden_states: torch.Tensor = field(init=False, default=None)
+    labels: torch.Tensor = field(init=False, default=None)
+    losses: torch.Tensor = field(init=False, default=None)
+    token_ids: torch.Tensor = field(init=False, default=None)
+    words: list = field(init=False, default_factory=list)
+    tokens: list = field(init=False, default_factory=list)
+    word_pieces: list = field(init=False, default_factory=list)
+    core_tokens: list = field(init=False, default_factory=list)
+    true_labels: list = field(init=False, default_factory=list)
     pred_labels: list = field(init=False, default_factory=list)
-    sentence_ids: list = field(init=False)
-    token_positions: list = field(init=False)
-    token_selector_id: list = field(init=False)
-    agreements: list = field(init=False)
-    x: list = field(init=False)
-    y: list = field(init=False)
+    sentence_ids: list = field(init=False, default_factory=list)
+    token_positions: list = field(init=False, default_factory=list)
+    token_selector_id: list = field(init=False, default_factory=list)
+    agreements: list = field(init=False, default_factory=list)
+    x: list = field(init=False, default_factory=list)
+    y: list = field(init=False, default_factory=list)
 
     def __post_init__(self):
-      self.process_data()
+        if self.model_outputs and self.tokenization_outputs:
+            self.extract_features()
+        if self.aligner:
+            self.align_labels()
+        if self.transformer:
+            self.apply_umap()
 
-    def process_data(self):
-        self.extract_features()
-        self.align_labels()
-        self.apply_umap()
     def extract_features(self):
-        """
-        Extract features from the model outputs.
-        """
-        self.last_hidden_states = torch.concat([s.last_hidden_states for s in self.model_outputs])
-        self.labels = torch.concat([s.labels for s in self.model_outputs])
-        self.losses = torch.concat([s.losses for s in self.model_outputs])
-        self.token_ids = torch.concat([s.input_ids for s in self.model_outputs])
+        """Extract features from the model outputs."""
+        self.last_hidden_states = torch.cat([s.last_hidden_states for s in self.model_outputs])
+        self.labels = torch.cat([s.labels for s in self.model_outputs])
+        self.losses = torch.cat([s.losses for s in self.model_outputs])
+        self.token_ids = torch.cat([s.input_ids for s in self.model_outputs])
         self.words = [word for sentence in self.tokenization_outputs for word in sentence.words_df]
         self.tokens = [token for sentence in self.tokenization_outputs for token in sentence.tokens_df]
         self.word_pieces = [wp for sentence in self.tokenization_outputs for wp in sentence.word_pieces_df]
@@ -135,36 +241,30 @@ class DataExtractor:
             for core_token, token_position, sentence_index in
             zip(self.core_tokens, self.token_positions, self.sentence_ids)
         ]
-
+        return self
 
     def align_labels(self):
+        """Align labels according to aligner's method."""
         aligned_labels = self.aligner.align_labels()
         self.pred_labels = [label for sentence in aligned_labels for label in sentence]
         self.agreements = np.array(self.true_labels) == np.array(self.pred_labels)
+        return self
 
     def apply_umap(self):
+        """Apply dimension reduction using UMAP."""
         coordinates = self.transformer.apply_umap(self.last_hidden_states)
         self.x, self.y = coordinates
+        return self
 
     def to_dict(self):
-        analysis_data = {
-            "labels": self.labels,
-            "losses": self.losses,
-            "token_ids": self.token_ids,
-            "words": self.words,
-            "tokens": self.tokens,
-            "word_pieces": self.word_pieces,
-            "core_tokens": self.core_tokens,
-            "true_labels": self.true_labels,
-            "pred_labels": self.pred_labels,
-            "sentence_ids": self.sentence_ids,
-            "token_positions": self.token_positions,
-            "token_selector_id": self.token_selector_id,
-            "agreements": self.agreements,
-            "x": self.x,
-            "y": self.y
-        }
-        return analysis_data
+        """Convert extracted data to a dictionary."""
+        return asdict(self)
+
+    def to_df(self):
+        """Convert data to pandas DataFrame and compute global ID."""
+        df = pd.DataFrame(self.to_dict())
+        df['global_id'] = UtilityFunctions.global_ids_from_df(df)
+        return df
 
 
 class UtilityFunctions:
@@ -242,6 +342,19 @@ class UtilityFunctions:
         """Apply softmax to logits to get probabilities."""
         exp_logits = np.exp(logits - np.max(logits, axis=1, keepdims=True))
         return exp_logits / np.sum(exp_logits, axis=1, keepdims=True)
+    
+    @staticmethod
+    def generate_global_ids(model_outputs):
+        global_ids = []
+        for sentence_id, sentence in enumerate(model_outputs):
+            for token_position, (token_id, label) in enumerate(zip(sentence.input_ids.tolist(), sentence.labels.tolist())):
+                global_ids.append(f"{str(token_id)}_{sentence_id}_{token_position}_{str(label)}")
+        return global_ids
+    
+    @staticmethod
+    def global_ids_from_df(df):
+        return (df['token_ids'].astype(str) + "_" + df['sentence_ids'].astype(str) + "_" +  df['token_positions'].astype(str) + "_" + df['labels'].astype(str)).values
+
 
 
 
@@ -442,13 +555,9 @@ class WordEntropyCalculator:
 
 
 class PredictionEntropyCalculator:
-    def __init__(self, model_outputs, data):
-        self.model_outputs = model_outputs
-        self.data = data
-
-    
+ 
     @staticmethod
-    def calculate(model_outputs, data):
+    def calculate(model_outputs, labels_map):
         """Extract prediction entropy from logits."""
         token_logits = []
         for sentence in model_outputs:
@@ -460,21 +569,97 @@ class PredictionEntropyCalculator:
         prediction_entropy = UtilityFunctions.entropy(probabilities_matrix)
         prediction_confidence = [max(prob_scores) for prob_scores in probabilities_matrix]
         prediction_variability = [np.std(prob_scores) for prob_scores in probabilities_matrix]
-        prediction_analysis = pd.DataFrame(probabilities_matrix, columns=data["labels_map"])
+        prediction_analysis = pd.DataFrame(probabilities_matrix, columns=labels_map)
         
         prediction_analysis["prediction_entropy"] = prediction_entropy
-        prediction_analysis["prediction_max_entropy"] = UtilityFunctions.max_entropy(len(data["labels_map"]))
+        prediction_analysis["prediction_max_entropy"] = UtilityFunctions.max_entropy(len(labels_map))
         prediction_analysis["confidence"] = prediction_confidence
         prediction_analysis["variability"] = prediction_variability
+        prediction_analysis["global_id"] = UtilityFunctions.generate_global_ids(model_outputs)
         return prediction_analysis
+    
+class ClusterAnalysis:
+    def __init__(self, flat_data, analysis_df, config):
+        self.flat_data = flat_data
+        self.labels_mask = np.array(self.flat_data.labels != -100)
+        self.states = self.flat_data.last_hidden_states[self.labels_mask]
+        self.true_labels = analysis_df["true_labels"][self.labels_mask]
+        self.pred_labels = analysis_df["pred_labels"][self.labels_mask]
+        self.df = pd.DataFrame()
+        self.df['global_ids'] = UtilityFunctions.global_ids_from_df(analysis_df[self.labels_mask]).copy()
+        self.config = config
+        
+    def normalize_states(self):
+        return normalize(self.states, norm=self.config.norm, axis=1)
 
+    def calculate_silhouette_scores(self):
+        truth_token_score = silhouette_samples(self.states, self.true_labels, metric=self.config.silhouette_metric)
+        pred_token_score = silhouette_samples(self.states, self.pred_labels, metric=self.config.silhouette_metric)
 
+        self.df['true_token_score'] = truth_token_score
+        self.df['pred_token_score'] = pred_token_score
+        average_silhouette_score = {
+            'true_score':self.df['true_token_score'].mean(),
+            'pred_score':self.df['pred_token_score'].mean()
+        }
+        return average_silhouette_score
+      
+    def apply_kmeans(self, k):
+        kmeans_model = KMeans(n_clusters=k, init= self.config.init_method, n_init=self.config.n_init, random_state=self.config.random_state)
+        normalized_states = self.normalize_states()
+        kmeans_model.fit(normalized_states)
+        cluster_labels = [f"cluster-{lb}" for lb in kmeans_model.labels_]
+        return kmeans_model.cluster_centers_, cluster_labels, kmeans_model.labels_
+
+    def generate_clustering_outputs(self, k):
+        _, cluster_labels, kmeans_labels = self.apply_kmeans(k)
+
+        self.df[f"k={k}"] = cluster_labels
+        aligned_labels = self.align_labels(self.true_labels, k)
+        self.df[self.config.n_clusters_map[k]] = aligned_labels
+        # aligned_labels = self.true_labels
+
+        metrics = homogeneity_completeness_v_measure(aligned_labels, kmeans_labels)
+        clustering_metrics = {
+            "homogeneity": metrics[0],
+            "completeness": metrics[1],
+            "v_measure": metrics[2],
+        }
+
+        return clustering_metrics
+    
+    def align_labels(self, true_labels, k):
+        aligned_labels = []
+        for label in true_labels:
+            match k:
+                case 3:
+                    aligned_labels.append(label.split('-')[0])
+                case 4:
+                    aligned_labels.append(label.split('-')[-1])
+                case 9:
+                    aligned_labels.append(label) 
+        return aligned_labels
+                
+            
+    
+    def calculate(self):
+        logging.info('Calculating Silhouette Score')
+        average_silhouette_score = self.calculate_silhouette_scores()
+        kmeans_metrics = {}
+        for k in self.config.n_clusters:
+            logging.info('Processing K=%s', k)
+            clustering_results = self.generate_clustering_outputs(k)
+            kmeans_metrics[f"k={k}"] = clustering_results
+
+        return average_silhouette_score, kmeans_metrics
 
 class DataAnnotator:
-    def __init__(self, subwords, analysis_data, train_data):
+    def __init__(self, subwords, analysis_data, train_data, model_outputs, labels_map):
         self.subwords = subwords
         self.train_data = train_data
         self.analysis_data = analysis_data
+        self.model_outputs = model_outputs
+        self.labels_map = labels_map
         self.analysis_df = None
 
     def annotate_tokenization_rate(self):
@@ -517,7 +702,7 @@ class DataAnnotator:
             lambda x: x if x in ["[CLS]", "[SEP]", "IGNORED"] else x.split("-")[-1]
         )
     def annotate_prediction_entropy(self):
-        prediction_entropy_df = PredictionEntropyCalculator.calculate()
+        prediction_entropy_df = PredictionEntropyCalculator.calculate(self.model_outputs, self.labels_map)
         self.analysis_df.merge(prediction_entropy_df, left_index=True, right_index=True, how='left')
 
     def annotate_all(self):
@@ -530,6 +715,363 @@ class DataAnnotator:
         self.annotate_error_types()
         self.annotate_prediction_entropy()
         return self.analysis_df
+    
+
+class Entity:
+    def __init__(self, outputs):
+        self.y_true = outputs["y_true"]
+        self.y_pred = outputs["y_pred"]
+        true = self.get_entities(self.y_true)
+        pred = self.get_entities(self.y_pred)
+        self.seq_true, self.seq_pred = self.compute_entity_location(true, pred)
+        
+
+    def end_of_chunk(self, prev_tag, tag, prev_type, type_):
+        """Checks if a chunk ended between the previous and current word.
+
+        Args:
+            prev_tag: previous chunk tag.
+            tag: current chunk tag.
+            prev_type: previous type.
+            type_: current type.
+
+        Returns:
+            chunk_end: boolean.
+        """
+        chunk_end = False
+
+        if prev_tag == "E":
+            chunk_end = True
+        if prev_tag == "S":
+            chunk_end = True
+
+        if prev_tag == "B" and tag == "B":
+            chunk_end = True
+        if prev_tag == "B" and tag == "S":
+            chunk_end = True
+        if prev_tag == "B" and tag == "O":
+            chunk_end = True
+        if prev_tag == "I" and tag == "B":
+            chunk_end = True
+        if prev_tag == "I" and tag == "S":
+            chunk_end = True
+        if prev_tag == "I" and tag == "O":
+            chunk_end = True
+
+        if prev_tag != "O" and prev_tag != "." and prev_type != type_:
+            chunk_end = True
+
+        return chunk_end
+
+    def start_of_chunk(self, prev_tag, tag, prev_type, type_):
+        """Checks if a chunk started between the previous and current word.
+
+        Args:
+            prev_tag: previous chunk tag.
+            tag: current chunk tag.
+            prev_type: previous type.
+            type_: current type.
+
+        Returns:
+            chunk_start: boolean.
+        """
+        chunk_start = False
+
+        if tag == "B":
+            chunk_start = True
+        if tag == "S":
+            chunk_start = True
+
+        if prev_tag == "E" and tag == "E":
+            chunk_start = True
+        if prev_tag == "E" and tag == "I":
+            chunk_start = True
+        if prev_tag == "S" and tag == "E":
+            chunk_start = True
+        if prev_tag == "S" and tag == "I":
+            chunk_start = True
+        if prev_tag == "O" and tag == "E":
+            chunk_start = True
+        if prev_tag == "O" and tag == "I":
+            chunk_start = True
+
+        if tag != "O" and tag != "." and prev_type != type_:
+            chunk_start = True
+
+        return chunk_start
+
+    def get_entities(self, seq, suffix=False):
+        """Gets entities from sequence.
+
+        Args:
+            seq (list): sequence of labels.
+
+        Returns:
+            list: list of (chunk_type, chunk_start, chunk_end).
+
+        Example:
+            >>> from seqeval.metrics.sequence_labeling import get_entities
+            >>> seq = ['B-PER', 'I-PER', 'O', 'B-LOC']
+            >>> get_entities(seq)
+            [('PER', 0, 1), ('LOC', 3, 3)]
+        """
+
+        def _validate_chunk(chunk, suffix):
+            if chunk in ["O", "B", "I", "E", "S"]:
+                return
+
+            if suffix:
+                if not chunk.endswith(("-B", "-I", "-E", "-S")):
+                    warnings.warn("{} seems not to be NE tag.".format(chunk))
+
+            else:
+                if not chunk.startswith(("B-", "I-", "E-", "S-")):
+                    warnings.warn("{} seems not to be NE tag.".format(chunk))
+
+        # for nested list
+        if any(isinstance(s, list) for s in seq):
+            seq = [item for sublist in seq for item in sublist + ["O"]]
+
+        prev_tag = "O"
+        prev_type = ""
+        begin_offset = 0
+        chunks = []
+        for i, chunk in enumerate(seq + ["O"]):
+            _validate_chunk(chunk, suffix)
+
+            if suffix:
+                tag = chunk[-1]
+                type_ = chunk[:-1].rsplit("-", maxsplit=1)[0] or "_"
+            else:
+                tag = chunk[0]
+                type_ = chunk[1:].split("-", maxsplit=1)[-1] or "_"
+
+            if self.end_of_chunk(prev_tag, tag, prev_type, type_):
+                chunks.append((prev_type, begin_offset, i - 1))
+            if self.start_of_chunk(prev_tag, tag, prev_type, type_):
+                begin_offset = i
+            prev_tag = tag
+            prev_type = type_
+
+        return chunks
+
+    def compute_entity_location(self, true, pred):
+
+        set1 = set(true)
+        set2 = set(pred)
+
+        # Find elements present in list1 but not in list2
+        only_in_set1 = set1 - set2
+
+        # Find elements present in list2 but not in list1
+        only_in_set2 = set2 - set1
+
+        # Add the missing elements to the corresponding lists
+        true.extend([("O",) + t[1:] for t in only_in_set2])
+        pred.extend([("O",) + t[1:] for t in only_in_set1])
+
+        seq_true = [t[0] for t in sorted(true, key=lambda x: x[1:])]
+        seq_pred = [t[0] for t in sorted(pred, key=lambda x: x[1:])]
+        return seq_true, seq_pred
+
+    def extract_tag(self, id, lst):
+        i = 0
+        for j, sen in enumerate(lst):
+            for t in sen:
+                if i + j == id:
+                    return t, j
+                i = i + 1
+                
+
+
+class AttentionSimilarity:
+    def __init__(self, device: torch.device, model1: AutoModel, model2: AutoModel, tokenizer, preprocessor=None):
+        """
+        Initialize AttentionSimilarity with models, tokenizer, and preprocessor.
+
+        Args:
+            device (torch.device): The device to run the computations on.
+            model1 (AutoModel): The pretrained model.
+            model2 (AutoModel): The fine-tuned model.
+            tokenizer: Tokenizer to process input data.
+            preprocessor: Preprocessor to preprocess input data.
+        """
+        self.device = device
+        self.model1 = model1
+        self.model2 = model2
+        self.tokenizer = tokenizer
+        self.preprocessor = preprocessor
+
+    def compute_similarity(self, example: List[str]) -> List[List[float]]:
+        """
+        Compute the similarity between attention heads of two models for a given example.
+
+        Args:
+            example (List[str]): The input example as a list of tokens.
+
+        Returns:
+            List[List[float]]: Similarity scores for each attention head across all layers.
+        """
+        sentence = " ".join(example)
+        inputs = self.tokenizer.encode_plus(
+            self.preprocessor.preprocess(sentence) if self.preprocessor else sentence,
+            return_tensors="pt",
+            truncation=True,
+            add_special_tokens=True,
+        )
+        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+
+        with torch.no_grad():
+            model1_att = self.model1(**inputs).attentions
+            model2_att = self.model2(**inputs).attentions
+
+        model1_mat = np.array([atten[0].cpu().numpy() for atten in model1_att])
+        model2_mat = np.array([atten[0].cpu().numpy() for atten in model2_att])
+
+        scores = [
+            [
+                1 - distance.cosine(model1_mat[layer][head].flatten(), model2_mat[layer][head].flatten())
+                for head in range(12)
+            ]
+            for layer in range(12)
+        ]
+        return scores
+
+
+class TrainingImpact:
+    def __init__(self, data: List, tokenization_outputs: TokenizationWorkflowManager, model_path: str, model: AutoModel):
+        """
+        Initialize TrainingImpact with mode, outputs, model path, and model.
+
+        Args:
+            mode (str): The mode of the data (e.g., 'train', 'test').
+            outputs: The outputs containing data and dataloaders.
+            model_path (str): Path to the pretrained model.
+            model (AutoModel): The fine-tuned model.
+        """
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.data = data
+        self.tokenizer = tokenization_outputs.tokenizer
+        self.preprocessor = tokenization_outputs.preprocessor
+        self.pretrained_model = AutoModel.from_pretrained(
+            model_path, output_attentions=True, output_hidden_states=True
+        ).to(self.device)
+        self.fine_tuned_model = model.to(self.device)
+        self.attention_impact = AttentionSimilarity(
+            self.device,
+            self.pretrained_model,
+            self.fine_tuned_model,
+            self.tokenizer,
+            self.preprocessor,
+        )
+
+    def compute_attention_similarities(self, n_examples: int = None) -> px.imshow:
+        """
+        Compute attention similarities for multiple examples and visualize the average similarity.
+
+        Returns:
+            px.imshow: Plotly heatmap figure of the average similarity scores.
+        """
+        logging.info("Computing attention similarities")
+        sampled_data = random.sample(self.data, n_examples if n_examples else len(self.data))
+        
+        # Compute similarities and display progress
+        similarities = [
+            self.attention_impact.compute_similarity(example['words'])
+            for example in tqdm(sampled_data, desc="Computing attention similarities")
+        ]
+        change_fig = px.imshow(
+            np.array(similarities).mean(0),
+            labels=dict(x="Heads", y="Layers", color="Similarity Score"),
+        )
+        change_fig.layout.height = 700
+        change_fig.layout.width = 700
+        return change_fig
+
+    def compute_example_similarities(self, id: int) -> None:
+        """
+        Compute attention similarities for a specific example and visualize the similarity.
+
+        Args:
+            id (int): The index of the example to visualize.
+        """
+        scores = self.attention_impact.compute_similarity(self.data[id]["words"])
+        change_fig = px.imshow(
+            scores,
+            labels=dict(x="Heads", y="Layers", color="Similarity Score"),
+        )
+        change_fig.layout.height = 700
+        change_fig.layout.width = 700
+        change_fig.show()
+
+    def extract_weights(self, layer: torch.nn.Module) -> torch.Tensor:
+        """
+        Extract weights from a model layer.
+
+        Args:
+            layer (torch.nn.Module): The model layer.
+
+        Returns:
+            torch.Tensor: The concatenated query, key, and value weights.
+        """
+        return torch.cat(
+            [
+                layer.attention.self.query.weight,
+                layer.attention.self.key.weight,
+                layer.attention.self.value.weight,
+            ],
+            dim=0,
+        )
+
+    def compare_weights(self) -> px.imshow:
+        """
+        Compare weights of the pretrained and fine-tuned models and visualize the differences.
+
+        Returns:
+            px.imshow: Plotly heatmap figure of the weight differences.
+        """
+        logging.info("Comparing weights")
+        num_layers = len(self.pretrained_model.encoder.layer)
+        num_heads = self.pretrained_model.config.num_attention_heads
+        weight_diff_matrix = np.zeros((num_layers, num_heads))
+
+        for layer in range(num_layers):
+            for head in range(num_heads):
+                pretrained_weight = (
+                    self.extract_weights(self.pretrained_model.encoder.layer[layer])[:, head::num_heads]
+                    .detach()
+                    .cpu()
+                    .numpy()
+                )
+                fine_tuned_weight = (
+                    self.extract_weights(self.fine_tuned_model.encoder.layer[layer])[:, head::num_heads]
+                    .detach()
+                    .cpu()
+                    .numpy()
+                )
+                weight_diff = 1 - distance.cosine(pretrained_weight.flatten(), fine_tuned_weight.flatten())
+                weight_diff_matrix[layer, head] = weight_diff
+
+        return self.visualize_weight_difference(weight_diff_matrix)
+
+    def visualize_weight_difference(self, weight_diff_matrix: np.ndarray) -> px.imshow:
+        """
+        Visualize weight differences across layers and heads.
+
+        Args:
+            weight_diff_matrix (np.ndarray): Matrix of weight differences.
+
+        Returns:
+            px.imshow: Plotly heatmap figure of the weight differences.
+        """
+        change_fig = px.imshow(
+            weight_diff_matrix,
+            labels=dict(x="Heads", y="Layers", color="Similarity Score"),
+        )
+        change_fig.layout.height = 700
+        change_fig.layout.width = 700
+        return change_fig
+
     
     
 

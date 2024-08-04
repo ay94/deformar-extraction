@@ -96,9 +96,13 @@ class TokenEvaluationStrategy(EvaluationStrategy):
 
     
 class EntityEvaluationStrategy(EvaluationStrategy):
-    def compute_metrics(self, true_labels, predictions, average_loss):
+    def compute_metrics(self, true_labels, predictions, average_loss, entity_config):
         truth_list, preds_list = self.align_predictions(predictions, true_labels)
-        report = seq_classification(y_true=truth_list, y_pred=preds_list, digits=7)
+        
+        if entity_config.mode:
+            report = seq_classification(y_true=truth_list, y_pred=preds_list, digits=7, mode=entity_config.mode, scheme=entity_config.scheme)
+        else:
+            report = seq_classification(y_true=truth_list, y_pred=preds_list, digits=7)
         return {
                 "Precision": seq_precision(
                     y_true=truth_list, y_pred=preds_list, average="micro"
@@ -114,10 +118,11 @@ class EntityEvaluationStrategy(EvaluationStrategy):
         
     
 class Evaluation:
-    def __init__(self, inv_map, truths, predictions, average_loss):
+    def __init__(self, inv_map, truths, predictions, average_loss, evaluation_config):
         self.predictions = predictions
         self.truths = truths
         self.loss = average_loss
+        self.evaluation_config = evaluation_config
         self.token_strategy = TokenEvaluationStrategy(inv_map)
         self.entity_strategy = EntityEvaluationStrategy(inv_map)
 
@@ -138,7 +143,7 @@ class Evaluation:
         
     def evaluate(self):
         token_metrics = self.token_strategy.compute_metrics(self.truths, self.predictions, self.loss)
-        entity_metrics = self.entity_strategy.compute_metrics(self.truths, self.predictions, self.loss)
+        entity_metrics = self.entity_strategy.compute_metrics(self.truths, self.predictions, self.loss, self.evaluation_config)
         
         
         # Combine or store results as needed
