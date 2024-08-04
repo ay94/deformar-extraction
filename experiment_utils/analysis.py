@@ -1021,28 +1021,27 @@ class DataAnnotator:
         return self.analysis_df
     
 
-import  logging
 class AnalysisWrokflowManager:
-    def __init__(self, config_manager, results, tokenization_outputs, model_outputs, data_manager):
+    def __init__(self, config_manager, results, tokenization_outputs, model_outputs, data_manager, split):
         self.transformer = DataTransformer(config_manager.umap_config)
         self.aligner = LabelAligner(
-            results.entity_outputs['y_pred'].copy(), tokenization_outputs.test
+            results.entity_outputs['y_pred'].copy(), tokenization_outputs.get_split(split)
         )
         self.config_manager = config_manager
-        self.tokenization_outputs = tokenization_outputs
-        self.model_outputs = model_outputs
+        self.tokenization_outputs = tokenization_outputs.get_split(split)
+        self.model_outputs = model_outputs.get_split(split)
         self.data_manager = data_manager
 
     def extract_analysis_data(self):
         try:
             analysis_data_extractor = DataExtractor(
-                self.tokenization_outputs.test, self.model_outputs.test, self.aligner, self.transformer
+                self.tokenization_outputs, self.model_outputs, self.aligner, self.transformer
             )
             analysis_df = analysis_data_extractor.to_df()
             flat_data = analysis_data_extractor.extract_features()
             return analysis_df, flat_data
         except Exception as e:
-            logging.error(f"Error in data extraction: {e}")
+            logging.error("Error in data extraction: %s", e)
             raise
 
     def perform_clustering(self, analysis_df, flat_data):
@@ -1052,7 +1051,7 @@ class AnalysisWrokflowManager:
             merged_data = analysis_df.merge(clustering_df, on='global_id', how='left')
             return merged_data, average_silhouette_score, kmeans_metrics
         except Exception as e:
-            logging.error(f"Error in clustering analysis: {e}")
+            logging.error("Error in clustering analysis: %s", e)
             raise
 
     def annotate_data(self, merged_data):
@@ -1066,7 +1065,7 @@ class AnalysisWrokflowManager:
             )
             return data_annotator.annotate_all()
         except Exception as e:
-            logging.error(f"Error in data annotation: {e}")
+            logging.error("Error in data annotation:%s", e)
             raise
 
     def run(self):
@@ -1076,7 +1075,7 @@ class AnalysisWrokflowManager:
         analysis_data = self.annotate_data(merged_data)
         end_time = time.time()
         execution_time = end_time - start_time
-        logging.info(f"Analysis workflow execution time: {execution_time} seconds")
+        logging.info("Analysis workflow execution time: %s seconds", execution_time)
         return analysis_data, average_silhouette_score, kmeans_metrics
 
 
