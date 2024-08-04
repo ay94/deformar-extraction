@@ -1021,7 +1021,7 @@ class DataAnnotator:
         return self.analysis_df
     
 
-class AnalysisWrokflowManager:
+class AnalysisWorkflowManager:
     def __init__(self, config_manager, results, tokenization_outputs, model_outputs, data_manager, split):
         self.transformer = DataTransformer(config_manager.umap_config)
         self.aligner = LabelAligner(
