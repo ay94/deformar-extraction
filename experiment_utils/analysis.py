@@ -1028,7 +1028,7 @@ class AnalysisWorkflowManager:
             results.entity_outputs['y_pred'].copy(), tokenization_outputs.get_split(split)
         )
         self.config_manager = config_manager
-        self.tokenization_outputs = tokenization_outputs.get_split(split)
+        self.tokenization_outputs = tokenization_outputs
         self.model_outputs = model_outputs
         self.data_manager = data_manager
         self.split = split
