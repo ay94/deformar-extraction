@@ -259,6 +259,22 @@ class ConfigWorkflowManager:
         self.config = config_fh.load_yaml(file_name)
     
     @property
+    def dataset_name(self) -> str:
+        return self.config.get('dataset_name', None)
+    
+    @property
+    def model_path(self) -> str:
+        return self.config.get('model_path', None)
+    
+    @property
+    def corpora_path(self) -> str:
+        return self.config.get('corpora_path', None)
+    
+    @property
+    def training_config(self) -> TrainingConfig:
+        return TrainingConfig.from_dict(self.config.get('training', {}).get('args', {}))
+    
+    @property
     def training_config(self) -> TrainingConfig:
         return TrainingConfig.from_dict(self.config.get('training', {}).get('args', {}))
     

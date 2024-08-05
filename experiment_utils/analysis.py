@@ -286,7 +286,7 @@ class DataExtractor:
     sentence_ids: list = field(init=False, default_factory=list)
     token_positions: list = field(init=False, default_factory=list)
     token_selector_id: list = field(init=False, default_factory=list)
-    agreements: list = field(init=False, default_factory=list)
+    agreements: np.array = field(init=False, default_factory=list)
     x: list = field(init=False, default_factory=list)
     y: list = field(init=False, default_factory=list)
 
@@ -1303,7 +1303,7 @@ class AttentionSimilarity:
 
 
 class TrainingImpact:
-    def __init__(self, data: List, tokenization_outputs: TokenizationWorkflowManager, model_path: str, model: AutoModel):
+    def __init__(self, data: List, tokenization_outputs: TokenizationWorkflowManager, pretrained_model: AutoModel, model: AutoModel):
         """
         Initialize TrainingImpact with mode, outputs, model path, and model.
 
@@ -1317,9 +1317,7 @@ class TrainingImpact:
         self.data = data
         self.tokenizer = tokenization_outputs.tokenizer
         self.preprocessor = tokenization_outputs.preprocessor
-        self.pretrained_model = AutoModel.from_pretrained(
-            model_path, output_attentions=True, output_hidden_states=True
-        ).to(self.device)
+        self.pretrained_model = pretrained_model.to(self.device)
         self.fine_tuned_model = model.to(self.device)
         self.attention_impact = AttentionSimilarity(
             self.device,

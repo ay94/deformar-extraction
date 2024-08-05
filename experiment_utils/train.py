@@ -289,10 +289,10 @@ class DatasetManager:
         corpora_fh = FileHandler(corpora_path)
         self.config = config
         self.corpora = corpora_fh.load_json(corpora_file_name)
-        self.corpus = self.get_corpus(dataset_name, self.corpora)
+        self.corpus = self.get_corpus(dataset_name)
         self.data = self.corpus['splits']
 
-    def get_corpus(self, data_name: str, corpora: Dict[str, Any]) -> Dict[str, Any]:
+    def get_corpus(self, data_name: str) -> Dict[str, Any]:
         """
         Retrieve the corpus information for the specified dataset name.
 
@@ -306,9 +306,9 @@ class DatasetManager:
         Raises:
             ValueError: If the dataset name is not found in the corpora.
         """
-        if data_name not in corpora:
+        if data_name not in self.corpora:
             raise ValueError(f"Data name {data_name} not found in corpora.")
-        return corpora[data_name]
+        return self.corpora[data_name]
 
     def get_dataset(self, split: str) -> TCDataset:
         """

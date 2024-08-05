@@ -98,6 +98,7 @@ class ModelOutputProcessor:
         return sentences
 
 
+
 class ModelOutputWorkflowManager:
     def __init__(self, model, data_manager, config, split=None):
         
@@ -164,3 +165,96 @@ class ModelOutputWorkflowManager:
             case "validation":
                 return self.validation
 
+
+@dataclass
+class PretrainedModelOutput:
+    input_ids: torch.Tensor
+    last_hidden_states: torch.Tensor
+
+class PretrainedModelOutputProcessor:
+    def __init__(self, data_loader, model, device):
+        self.data_loader = data_loader
+        self.model = model
+        self.device = device
+
+    def process_outputs(self):
+        valid_keys = ['input_ids', 'token_type_ids', 'attention_mask']
+        self.model.eval()
+        outputs = []
+        with torch.no_grad():
+            for data in tqdm(self.data_loader):
+                data = {k: v.to(self.device) for k, v in data.items() if k in valid_keys}
+                outputs.append(self.process_batch(data))
+        return outputs
+
+    def process_batch(self, data):
+        model_outputs = self.model(**data)
+        batch_output = PretrainedModelOutput(
+            input_ids=data['input_ids'],
+            last_hidden_states=model_outputs['last_hidden_state']
+        )
+        return batch_output
+    
+
+class PretrainedModelOutputWorkflowManager:
+    def __init__(self, model, data_manager, config, split=None):
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.model = model.to(self.device)
+        self.data_manager = data_manager
+        self.config = config
+        self.splits = list(data_manager.corpus['splits'].keys())
+        self.model_outputs = {}
+        self.process_model_outputs(split)
+
+    def process_model_outputs(self, split):
+        """Process and store model outputs for all configured splits."""
+        if split:
+            self.model_outputs[split] = self.get_split_data(split)
+            return
+        for split in self.splits:
+            if self.get_batch_size(split):  # Ensure the split has a designated batch size
+                self.model_outputs[split] = self.get_split_data(split)
+            else:
+                logging.warning('%s split is not configured with a batch size.', split)
+
+    def get_split_data(self, split):
+        batch_size = self.get_batch_size(split)
+        dataloader = self.data_manager.get_dataloader(split, batch_size)
+        if dataloader:
+            outputs = PretrainedModelOutputProcessor(dataloader, self.model, self.device).process_outputs()
+            return outputs
+        else:
+            logging.warning('No data available for %s split, returning empty list.', split)
+            return []
+    
+    def get_batch_size(self, split):
+        """Get the batch size for a given split."""
+        return {
+            'train': self.config.train_batch_size,
+            'test': self.config.test_batch_size,
+            'validation': self.config.test_batch_size
+        }.get(split, None)
+
+    @property
+    def train(self):
+        """Return processed outputs for the training split."""
+        return self.model_outputs.get('train', [])
+
+    @property
+    def test(self):
+        """Return processed outputs for the testing split."""
+        return self.model_outputs.get('test', [])
+
+    @property
+    def validation(self):
+        """Return processed outputs for the validation split."""
+        return self.model_outputs.get('validation', [])
+    
+    def get_split(self, split):
+        match split:
+            case "train":
+                return self.train
+            case "test":
+                return self.test
+            case "validation":
+                return self.validation
