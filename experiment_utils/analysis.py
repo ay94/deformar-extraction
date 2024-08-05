@@ -267,28 +267,120 @@ class DataTransformer:
 #         df['global_id'] = UtilityFunctions.global_ids_from_df(df)
 #         return df
 
+# @dataclass
+# class DataExtractor:
+#     tokenization_outputs: list = field(default_factory=list)
+#     model_outputs: list = field(default_factory=list)
+#     aligner: LabelAligner = None
+#     transformer: DataTransformer = None
+#     last_hidden_states: torch.Tensor = field(init=False, default=None)
+#     labels: torch.Tensor = field(init=False, default=None)
+#     losses: torch.Tensor = field(init=False, default=None)
+#     token_ids: torch.Tensor = field(init=False, default=None)
+#     words: list = field(init=False, default_factory=list)
+#     tokens: list = field(init=False, default_factory=list)
+#     word_pieces: list = field(init=False, default_factory=list)
+#     core_tokens: list = field(init=False, default_factory=list)
+#     true_labels: list = field(init=False, default_factory=list)
+#     pred_labels: list = field(init=False, default_factory=list)
+#     sentence_ids: list = field(init=False, default_factory=list)
+#     token_positions: list = field(init=False, default_factory=list)
+#     token_selector_id: list = field(init=False, default_factory=list)
+#     agreements: np.array = field(init=False, default_factory=list)
+#     x: list = field(init=False, default_factory=list)
+#     y: list = field(init=False, default_factory=list)
+
+#     def __post_init__(self):
+#         if self.model_outputs and self.tokenization_outputs:
+#             self.extract_features()
+#         if self.aligner:
+#             self.align_labels()
+#         if self.transformer:
+#             self.apply_umap()
+
+#     def extract_features(self):
+#         """Extract features from the model outputs."""
+#         self.last_hidden_states = torch.cat([s.last_hidden_states for s in self.model_outputs])
+#         self.labels = torch.cat([s.labels for s in self.model_outputs])
+#         self.losses = torch.cat([s.losses for s in self.model_outputs])
+#         self.token_ids = torch.cat([s.input_ids for s in self.model_outputs])
+#         self.words = [word for sentence in self.tokenization_outputs for word in sentence.words_df]
+#         self.tokens = [token for sentence in self.tokenization_outputs for token in sentence.tokens_df]
+#         self.word_pieces = [wp for sentence in self.tokenization_outputs for wp in sentence.word_pieces_df]
+#         self.core_tokens = [ct for sentence in self.tokenization_outputs for ct in sentence.core_tokens_df]
+#         self.true_labels = [label for sentence in self.tokenization_outputs for label in sentence.labels_df]
+#         self.sentence_ids = [index for sentence in self.tokenization_outputs for index in sentence.sentence_index_df]
+#         self.token_positions = [position for sentence in self.tokenization_outputs for position in range(len(sentence.tokens_df))]
+#         self.token_selector_id = [
+#             f"{core_token}@#{token_position}@#{sentence_index}"
+#             for core_token, token_position, sentence_index in
+#             zip(self.core_tokens, self.token_positions, self.sentence_ids)
+#         ]
+#         return self
+
+#     def align_labels(self):
+#         """Align labels according to aligner's method."""
+#         aligned_labels = self.aligner.align_labels()
+#         self.pred_labels = [label for sentence in aligned_labels for label in sentence]
+#         self.agreements = np.array(self.true_labels) == np.array(self.pred_labels)
+#         return self
+
+#     def apply_umap(self):
+#         """Apply dimension reduction using UMAP."""
+#         coordinates = self.transformer.apply_umap(self.last_hidden_states)
+#         self.x, self.y = coordinates
+#         return self
+
+#     def to_dict(self):
+#         """Convert extracted data to a dictionary."""
+#         data_dict = {
+#             'labels': self.labels,
+#             'losses': self.losses,
+#             'token_ids': self.token_ids,
+#             'words': self.words,
+#             'tokens': self.tokens,
+#             'word_pieces': self.word_pieces,
+#             'core_tokens': self.core_tokens,
+#             'true_labels': self.true_labels,
+#             'pred_labels': self.pred_labels,
+#             'sentence_ids': self.sentence_ids,
+#             'token_positions': self.token_positions,
+#             'token_selector_id': self.token_selector_id,
+#             'x': self.x,
+#             'y': self.y,
+#             'agreements': self.agreements.tolist(),  # Convert numpy array to list
+#             # Exclude last_hidden_states, labels, losses, and token_ids to avoid large data transfer
+#         }
+#         return data_dict
+
+#     def to_df(self):
+#         """Convert data to pandas DataFrame and compute global ID."""
+#         df = pd.DataFrame(self.to_dict())
+#         df['global_id'] = UtilityFunctions.global_ids_from_df(df)
+#         return df
+
 @dataclass
 class DataExtractor:
-    tokenization_outputs: list = field(default_factory=list)
-    model_outputs: list = field(default_factory=list)
-    aligner: LabelAligner = None
-    transformer: DataTransformer = None
-    last_hidden_states: torch.Tensor = field(init=False, default=None)
-    labels: torch.Tensor = field(init=False, default=None)
-    losses: torch.Tensor = field(init=False, default=None)
-    token_ids: torch.Tensor = field(init=False, default=None)
-    words: list = field(init=False, default_factory=list)
-    tokens: list = field(init=False, default_factory=list)
-    word_pieces: list = field(init=False, default_factory=list)
-    core_tokens: list = field(init=False, default_factory=list)
-    true_labels: list = field(init=False, default_factory=list)
-    pred_labels: list = field(init=False, default_factory=list)
-    sentence_ids: list = field(init=False, default_factory=list)
-    token_positions: list = field(init=False, default_factory=list)
-    token_selector_id: list = field(init=False, default_factory=list)
-    agreements: np.array = field(init=False, default_factory=list)
-    x: list = field(init=False, default_factory=list)
-    y: list = field(init=False, default_factory=list)
+    tokenization_outputs: Optional[list] = field(default_factory=list)
+    model_outputs: Optional[list] = field(default_factory=list)
+    aligner: Optional['LabelAligner'] = field(default=None, repr=False)
+    transformer: Optional['DataTransformer'] = field(default=None, repr=False)
+    last_hidden_states: Optional[torch.Tensor] = field(init=False, default=None)
+    labels: Optional[torch.Tensor] = field(init=False, default=None)
+    losses: Optional[torch.Tensor] = field(init=False, default=None)
+    token_ids: Optional[torch.Tensor] = field(init=False, default=None)
+    words: Optional[list] = field(init=False, default_factory=list)
+    tokens: Optional[list] = field(init=False, default_factory=list)
+    word_pieces: Optional[list] = field(init=False, default_factory=list)
+    core_tokens: Optional[list] = field(init=False, default_factory=list)
+    true_labels: Optional[list] = field(init=False, default_factory=list)
+    pred_labels: Optional[list] = field(init=False, default_factory=list)
+    sentence_ids: Optional[list] = field(init=False, default_factory=list)
+    token_positions: Optional[list] = field(init=False, default_factory=list)
+    token_selector_id: Optional[list] = field(init=False, default_factory=list)
+    agreements: Optional[list] = field(init=False, default_factory=list)
+    x: Optional[list] = field(init=False, default_factory=list)
+    y: Optional[list] = field(init=False, default_factory=list)
 
     def __post_init__(self):
         if self.model_outputs and self.tokenization_outputs:
@@ -301,9 +393,13 @@ class DataExtractor:
     def extract_features(self):
         """Extract features from the model outputs."""
         self.last_hidden_states = torch.cat([s.last_hidden_states for s in self.model_outputs])
-        self.labels = torch.cat([s.labels for s in self.model_outputs])
-        self.losses = torch.cat([s.losses for s in self.model_outputs])
-        self.token_ids = torch.cat([s.input_ids for s in self.model_outputs])
+        if hasattr(self.model_outputs[0], 'labels'):
+            self.labels = torch.cat([s.labels for s in self.model_outputs])
+        if hasattr(self.model_outputs[0], 'losses'):
+            self.losses = torch.cat([s.losses for s in self.model_outputs])
+        if hasattr(self.model_outputs[0], 'input_ids'):
+            self.token_ids = torch.cat([s.input_ids for s in self.model_outputs])
+
         self.words = [word for sentence in self.tokenization_outputs for word in sentence.words_df]
         self.tokens = [token for sentence in self.tokenization_outputs for token in sentence.tokens_df]
         self.word_pieces = [wp for sentence in self.tokenization_outputs for wp in sentence.word_pieces_df]
@@ -327,38 +423,39 @@ class DataExtractor:
 
     def apply_umap(self):
         """Apply dimension reduction using UMAP."""
-        coordinates = self.transformer.apply_umap(self.last_hidden_states)
+        coordinates = self.transformer.apply_umap(self.last_hidden_states.cpu().numpy())
         self.x, self.y = coordinates
         return self
-
+    
     def to_dict(self):
-        """Convert extracted data to a dictionary."""
-        data_dict = {
-            'labels': self.labels,
-            'losses': self.losses,
-            'token_ids': self.token_ids,
-            'words': self.words,
-            'tokens': self.tokens,
-            'word_pieces': self.word_pieces,
-            'core_tokens': self.core_tokens,
-            'true_labels': self.true_labels,
-            'pred_labels': self.pred_labels,
-            'sentence_ids': self.sentence_ids,
-            'token_positions': self.token_positions,
-            'token_selector_id': self.token_selector_id,
-            'x': self.x,
-            'y': self.y,
-            'agreements': self.agreements.tolist(),  # Convert numpy array to list
-            # Exclude last_hidden_states, labels, losses, and token_ids to avoid large data transfer
-        }
-        return data_dict
+      """Convert extracted data to a dictionary."""
+      exclude_fields = {'tokenization_outputs', 'model_outputs', 'aligner', 'transformer', 'last_hidden_states'}
+      data_dict = {}
+      for field_name in self.__dataclass_fields__:
+        if field_name not in exclude_fields:
+          value = getattr(self, field_name)
+          if value is not None and (not isinstance(value, (list, np.ndarray, torch.Tensor)) or len(value) > 0):
+              if isinstance(value, torch.Tensor):
+                  data_dict[field_name] = value.cpu().tolist()
+              elif isinstance(value, np.ndarray):
+                  data_dict[field_name] = value.tolist()
+              else:
+                  data_dict[field_name] = value
+      return data_dict
 
-    def to_df(self):
+
+    def to_df(self, is_pretrained: bool = False):
         """Convert data to pandas DataFrame and compute global ID."""
-        df = pd.DataFrame(self.to_dict())
-        df['global_id'] = UtilityFunctions.global_ids_from_df(df)
+        data_dict = self.to_dict()
+        if is_pretrained:
+            df = pd.DataFrame(data_dict)
+            df['global_id'] = UtilityFunctions.global_ids_from_df(df)
+            df = df.rename(columns={'x': 'pre_x', 'y': 'pre_y'})
+            df = df[['global_id', 'pre_x', 'pre_y']]
+        else:
+            df = pd.DataFrame(data_dict)
+            df['global_id'] = UtilityFunctions.global_ids_from_df(df)
         return df
-
 
 
 class UtilityFunctions:
@@ -957,9 +1054,10 @@ class ClusterAnalysis:
 #         return self.analysis_df
 
 class DataAnnotator:
-    def __init__(self, subwords, analysis_data, train_data, model_outputs, labels_map):
+    def __init__(self, subwords, analysis_data, pretrained_coordinates, train_data, model_outputs, labels_map):
         self.subwords = subwords
         self.analysis_data = analysis_data
+        self.pretrained_coordinates = pretrained_coordinates
         self.train_data = train_data
         self.model_outputs = model_outputs
         self.labels_map = labels_map
@@ -1008,6 +1106,9 @@ class DataAnnotator:
     def annotate_prediction_entropy(self):
         prediction_entropy_df = PredictionEntropyCalculator.calculate(self.model_outputs, self.labels_map)
         self.analysis_data.merge(prediction_entropy_df, left_index=True, right_index=True, how='left')
+    
+    def annotate_pretrained_coordinates(self):
+        self.analysis_data = self.analysis_data.merge(self.pretrained_coordinates, on='global_ids')
 
     def annotate_all(self):
         self.analysis_df = self.analysis_data.copy()
@@ -1022,7 +1123,7 @@ class DataAnnotator:
     
 
 class AnalysisWorkflowManager:
-    def __init__(self, config_manager, results, tokenization_outputs, model_outputs, data_manager, split):
+    def __init__(self, config_manager, results, tokenization_outputs, model_outputs, pretrained_model_outputs, data_manager, split):
         self.transformer = DataTransformer(config_manager.umap_config)
         self.aligner = LabelAligner(
             results.entity_outputs['y_pred'].copy(), tokenization_outputs.get_split(split)
@@ -1030,6 +1131,7 @@ class AnalysisWorkflowManager:
         self.config_manager = config_manager
         self.tokenization_outputs = tokenization_outputs
         self.model_outputs = model_outputs
+        self.pretrained_model_outputs = pretrained_model_outputs
         self.data_manager = data_manager
         self.split = split
 
@@ -1040,7 +1142,11 @@ class AnalysisWorkflowManager:
             )
             analysis_df = analysis_data_extractor.to_df()
             flat_data = analysis_data_extractor.extract_features()
-            return analysis_df, flat_data
+            pretrained_coordinates_extractor = DataExtractor(
+                self.tokenization_outputs.get_split(self.split), self.pretrained_model_outputs.get_split(self.split),  self.transformer
+            )
+            pretrained_coordinates = pretrained_coordinates_extractor.to_df()
+            return analysis_df, flat_data, pretrained_coordinates
         except Exception as e:
             logging.error("Error in data extraction: %s", e)
             raise
@@ -1055,11 +1161,12 @@ class AnalysisWorkflowManager:
             logging.error("Error in clustering analysis: %s", e)
             raise
 
-    def annotate_data(self, merged_data):
+    def annotate_data(self, merged_data, pretrained_data):
         try:
             data_annotator = DataAnnotator(
                 self.tokenization_outputs.train_subwords,
                 merged_data,
+                pretrained_data,
                 self.data_manager.data.get('train'),
                 self.model_outputs.test,
                 self.data_manager.corpus['labels_map'],
@@ -1071,9 +1178,9 @@ class AnalysisWorkflowManager:
 
     def run(self):
         start_time = time.time()
-        analysis_df, flat_data = self.extract_analysis_data()
+        analysis_df, flat_data, pretrained_coordinates = self.extract_analysis_data()
         merged_data, average_silhouette_score, kmeans_metrics = self.perform_clustering(analysis_df, flat_data)
-        analysis_data = self.annotate_data(merged_data)
+        analysis_data = self.annotate_data(merged_data, pretrained_coordinates)
         end_time = time.time()
         execution_time = end_time - start_time
         logging.info("Analysis workflow execution time: %s seconds", execution_time)

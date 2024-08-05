@@ -49,8 +49,8 @@ class ModelOutputProcessor:
         with torch.no_grad():
             for data in tqdm(self.data_loader):
                 data = {k: v.to(self.device) for k, v in data.items()}
-                data['words_ids'] = data['input_ids']
-                data['sentence_num'] = data['input_ids']
+                data['words_ids'] = data['input_ids'] # TODO: these are just place holders remember to remove 
+                data['sentence_num'] = data['input_ids'] # TODO: these are just place holders remember to remove
                 outputs = self.model(**data)
                 batch = BatchData(
                     input_ids=data['input_ids'],
@@ -166,10 +166,33 @@ class ModelOutputWorkflowManager:
                 return self.validation
 
 
+from dataclasses import dataclass
+import torch
+from tqdm.autonotebook import tqdm
+
 @dataclass
-class PretrainedModelOutput:
+class PretrainedModelSentenceData:
     input_ids: torch.Tensor
+    labels: torch.Tensor
     last_hidden_states: torch.Tensor
+
+@dataclass
+class PretrainedModelBatchData:
+    input_ids: torch.Tensor
+    labels: torch.Tensor
+    last_hidden_states: torch.Tensor
+
+    def detach(self):
+        """Detach all tensors to move them to CPU and reduce memory footprint on GPU."""
+        for attr, value in self.__dict__.items():
+            if isinstance(value, torch.Tensor):
+                setattr(self, attr, value.detach().cpu())
+            elif isinstance(value, tuple) and all(torch.is_tensor(x) for x in value):
+                # If the batch is a tuple of tensors (like hidden states), process each tensor.
+                detached_batch = tuple(layer.detach().cpu() for layer in value)
+                setattr(self, attr, detached_batch)
+            else:
+                raise TypeError("Unsupported batch type: {}".format(type(value)))
 
 class PretrainedModelOutputProcessor:
     def __init__(self, data_loader, model, device):
@@ -180,21 +203,39 @@ class PretrainedModelOutputProcessor:
     def process_outputs(self):
         valid_keys = ['input_ids', 'token_type_ids', 'attention_mask']
         self.model.eval()
-        outputs = []
+        sentences = []
         with torch.no_grad():
             for data in tqdm(self.data_loader):
-                data = {k: v.to(self.device) for k, v in data.items() if k in valid_keys}
-                outputs.append(self.process_batch(data))
-        return outputs
+                model_data = {k: v.to(self.device) for k, v in data.items() if k in valid_keys}
+                outputs = self.model(**model_data)
+                batch = PretrainedModelBatchData(
+                    input_ids=data['input_ids'],
+                    labels=data['labels'],
+                    last_hidden_states=outputs['last_hidden_state'],
 
-    def process_batch(self, data):
-        model_outputs = self.model(**data)
-        batch_output = PretrainedModelOutput(
-            input_ids=data['input_ids'],
-            last_hidden_states=model_outputs['last_hidden_state']
-        )
-        return batch_output
-    
+                )
+                batch.detach()
+                batch_sentences = self.extract_sentences_from_batch(batch)
+                sentences.extend(batch_sentences)
+        return sentences
+
+    def extract_sentences_from_batch(self, batch: PretrainedModelBatchData):
+        sentences = []
+        for idx in range(batch.input_ids.size(0)):  # Iterate over each sentence in the batch
+            sentence_mask = batch.input_ids[idx] != 0  # Create a mask where the input_ids are not padding
+            # Use the mask to filter out padding in input_ids and last_hidden_state
+            if sentence_mask.any():
+                input_ids = batch.input_ids[idx][sentence_mask]
+                labels = batch.labels[idx][sentence_mask]
+                last_hidden_state = batch.last_hidden_states[idx][sentence_mask]
+                sentence = PretrainedModelSentenceData(
+                    input_ids=input_ids,
+                    labels=labels,
+                    last_hidden_states=last_hidden_state
+                )
+                sentences.append(sentence)
+        return sentences
+
 
 class PretrainedModelOutputWorkflowManager:
     def __init__(self, model, data_manager, config, split=None):
