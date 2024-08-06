@@ -12,8 +12,6 @@ class SentenceData:
     logits: torch.Tensor
     labels: torch.Tensor
     
-
-
 @dataclass
 class BatchData:
     input_ids: torch.Tensor
