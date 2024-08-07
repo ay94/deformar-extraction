@@ -7,6 +7,9 @@ from transformers import AutoModel
 
 
 
+from typing import Dict
+from transformers import AutoModel
+import logging
 class OutputGenerationPipeline:
     def __init__(self, model, data_manager, config_manager, pretrained_model_path: str):
         """
@@ -21,7 +24,9 @@ class OutputGenerationPipeline:
         self.model = model
         self.data_manager = data_manager
         self.config_manager = config_manager
-        self.pretrained_model = self.load_pretrained_model(pretrained_model_path)
+        self.pretrained_model_path = pretrained_model_path
+        self.pretrained_model = None
+        self.outputs = None
 
     def load_pretrained_model(self, pretrained_model_path):
         """
@@ -39,6 +44,12 @@ class OutputGenerationPipeline:
         except Exception as e:
             logging.error(f"Error loading pretrained model: {e}")
             raise
+    def initialize(self):
+      """
+      Initialize the OutputGenerationPipeline.
+      """
+      if self.pretrained_model is None:
+        self.pretrained_model = self.load_pretrained_model(self.pretrained_model_path) 
 
     def run(self, split: str) -> Dict[str, object]:
         """
@@ -52,7 +63,7 @@ class OutputGenerationPipeline:
         """
         try:
             
-            
+            self.initialize()
 
             # Generate model outputs
             logging.info(f"Generating model outputs for split: {split}")
@@ -62,7 +73,7 @@ class OutputGenerationPipeline:
             
             # Generate pretrained model outputs
             logging.info(f"Generating pretrained model outputs for split: {split}")
-            pertrained_model_outputs_manager = PretrainedModelOutputWorkflowManager(
+            pretrained_model_outputs_manager = PretrainedModelOutputWorkflowManager(
                 self.pretrained_model, self.data_manager, self.config_manager.training_config, split
             )
             
@@ -72,42 +83,70 @@ class OutputGenerationPipeline:
                 self.data_manager.corpus, self.config_manager.tokenization_config
             )
 
-            return {
-                "pretrained_model_outputs": pertrained_model_outputs_manager,
+            self.outputs =  {
                 "model_outputs": model_outputs_manager,
+                "pretrained_model_outputs": pretrained_model_outputs_manager,
                 "tokenization_outputs": tokenization_outputs_manager
             }
         except Exception as e:
             logging.error(f"Error during output generation: {e}")
             raise
+        
+    @property
+    def model_outputs(self):
+        return self.outputs.get("model_outputs")
+    
+    @property
+    def pretrained_model_outputs(self):
+        return self.outputs.get("pretrained_model_outputs")
+    
+    @property
+    def tokenization_outputs(self):
+        return self.outputs.get("tokenization_outputs")
 # test
 class AnalysisExtractionPipeline:
-    def __init__(self, output_pipeline: Dict[str, object], results, config_manager, split: str):
+    def __init__(self, output_pipeline: OutputGenerationPipeline, evaluation_results, config_manager, split: str):
         """
         Initialize the AnalysisExtractionPipeline with the necessary components.
         
         Args:
             output_pipeline (Dict[str, object]): Outputs from the previous pipeline (model and tokenization outputs).
-            metrics: Metrics from the model evaluation.
+            evaluation_results: Metrics from the model evaluation.
             config_manager: Manager for accessing configuration settings.
         """
-        try:
-            self.analysis_manager = AnalysisWorkflowManager(
-                config_manager, results, output_pipeline.get('tokenization_outputs'), output_pipeline.get('model_outputs'), 
-                output_pipeline.get('pretrained_model_outputs'), output_pipeline.data_manager, split
-            )
-            
-            self.entity_confusion = Entity(
-                results.entity_outputs
-            )
-            
-            self.training_impact = TrainingImpact(
-                output_pipeline.data_manager.data[split], output_pipeline['tokenization_outputs'], output_pipeline.pretrained_model, output_pipeline.model.bert
-            )
+        
+        self.output_pipeline = output_pipeline
+        self.evaluation_results = evaluation_results
+        self.config_manager = config_manager
+        self.split = split
+        self.outputs = None
+        self.analysis_manager = None
+        self.entity_confusion = None
+        self.training_impact = None
+        self.initialized = False
 
-        except Exception as e:
-            logging.error("Error initializing AnalysisExtractionPipeline: %s", e)
-            raise
+    def initialize(self):
+        if not self.initialized:
+            if not self.output_pipeline.outputs:
+                logging.warning("Output pipeline is empty. Please run the Output Generation Pipeline first.")
+                raise ValueError("Output pipeline outputs are required but not available.")
+            
+            try:
+                self.analysis_manager = AnalysisWorkflowManager(
+                    self.config_manager, self.evaluation_results, 
+                    self.output_pipeline.tokenization_outputs, self.output_pipeline.model_outputs, 
+                    self.output_pipeline.pretrained_model_outputs, self.output_pipeline.data_manager, self.split
+                )
+                self.entity_confusion = Entity(self.evaluation_results.entity_outputs)
+                self.training_impact = TrainingImpact(
+                    self.output_pipeline.data_manager.data[self.split], self.output_pipeline.tokenization_outputs, 
+                    self.output_pipeline.pretrained_model, self.output_pipeline.model.bert
+                )
+                self.initialized = True
+                logging.info("Analysis extraction pipeline initialized successfully.")
+            except Exception as e:
+                logging.error("Error initializing AnalysisExtractionPipeline: %s", e)
+                raise
 
     def run(self) -> Dict[str, object]:
         """
@@ -117,13 +156,14 @@ class AnalysisExtractionPipeline:
             Dict[str, object]: A dictionary containing analysis data, cluster analysis, training impact, and entity evaluation.
         """
         try:
+            self.initialize()
             analysis_data, average_silhouette_score, kmeans_metrics =  self.analysis_manager.run()
             attention_similarity_matrix = self.training_impact.compute_attention_similarities()
             attention_weights_similarity = self.training_impact.compare_weights()
             entity_confusion_data = self.entity_confusion.generate_entity_confusion_data()
             
             
-            return {
+            self.outputs =  {
                   "analysis_data": analysis_data,
                   "average_silhouette_score": average_silhouette_score,
                   "kmeans_metrics": kmeans_metrics,
@@ -134,4 +174,28 @@ class AnalysisExtractionPipeline:
         except Exception as e:
             logging.error("Error running AnalysisExtractionPipeline: %s", e)
             raise
-
+        
+      
+    @property
+    def analysis_data(self):
+        return self.outputs.get("analysis_data")
+    
+    @property
+    def average_silhouette_score(self):
+        return self.outputs.get("average_silhouette_score")
+    
+    @property
+    def kmeans_metrics(self):
+        return self.outputs.get("kmeans_metrics")
+      
+    @property
+    def attention_similarity_matrix(self):
+        return self.outputs.get("attention_similarity_matrix")
+    
+    @property
+    def attention_weights_similarity(self):
+        return self.outputs.get("attention_weights_similarity")
+    
+    @property
+    def entity_confusion_data(self):
+        return self.outputs.get("entity_confusion_data")
