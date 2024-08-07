@@ -132,21 +132,34 @@ class AnalysisExtractionPipeline:
                 raise ValueError("Output pipeline outputs are required but not available.")
             
             try:
-                self.analysis_manager = AnalysisWorkflowManager(
-                    self.config_manager, self.evaluation_results, 
-                    self.output_pipeline.tokenization_outputs, self.output_pipeline.model_outputs, 
-                    self.output_pipeline.pretrained_model_outputs, self.output_pipeline.data_manager, self.split
-                )
-                self.entity_confusion = Entity(self.evaluation_results.entity_outputs)
-                self.training_impact = TrainingImpact(
-                    self.output_pipeline.data_manager.data[self.split], self.output_pipeline.tokenization_outputs, 
-                    self.output_pipeline.pretrained_model, self.output_pipeline.model.bert
-                )
+                # self.analysis_manager = AnalysisWorkflowManager(
+                #     self.config_manager, self.evaluation_results, 
+                #     self.output_pipeline.tokenization_outputs, self.output_pipeline.model_outputs, 
+                #     self.output_pipeline.pretrained_model_outputs, self.output_pipeline.data_manager, self.split
+                # )
+                # self.entity_confusion = Entity(self.evaluation_results.entity_outputs)
+                # self.training_impact = TrainingImpact(
+                #     self.output_pipeline.data_manager.data[self.split], self.output_pipeline.tokenization_outputs, 
+                #     self.output_pipeline.pretrained_model, self.output_pipeline.model.bert
+                # )
+                self.setup_analysis_components()
                 self.initialized = True
                 logging.info("Analysis extraction pipeline initialized successfully.")
             except Exception as e:
                 logging.error("Error initializing AnalysisExtractionPipeline: %s", e)
                 raise
+    def setup_analysis_components(self):
+        """ Setup all components required for analysis. """
+        self.analysis_manager = AnalysisWorkflowManager(
+            self.config_manager, self.evaluation_results, 
+            self.output_pipeline.tokenization_outputs, self.output_pipeline.model_outputs, 
+            self.output_pipeline.pretrained_model_outputs, self.output_pipeline.data_manager, self.split
+        )
+        self.entity_confusion = Entity(self.evaluation_results.entity_outputs)
+        self.training_impact = TrainingImpact(
+            self.output_pipeline.data_manager.data[self.split], self.output_pipeline.tokenization_outputs, 
+            self.output_pipeline.pretrained_model, self.output_pipeline.model.bert
+        )
 
     def run(self) -> Dict[str, object]:
         """
@@ -165,6 +178,10 @@ class AnalysisExtractionPipeline:
             
             self.outputs =  {
                   "analysis_data": analysis_data,
+                  "entity_report": self.evaluation_results.entity_report,
+                  "entity_results": self.evaluation_results.entity_results,
+                  "token_report": self.evaluation_results.token_report,
+                  "token_results": self.evaluation_results.token_results,
                   "average_silhouette_score": average_silhouette_score,
                   "kmeans_metrics": kmeans_metrics,
                   "attention_similarity_matrix": attention_similarity_matrix,
@@ -179,6 +196,23 @@ class AnalysisExtractionPipeline:
     @property
     def analysis_data(self):
         return self.outputs.get("analysis_data")
+    
+    @property
+    def entity_report(self):
+        return self.outputs.get("entity_report")
+    
+    @property
+    def entity_results(self):
+        return self.outputs.get("entity_results")
+    
+    @property
+    def token_report(self):
+        return self.outputs.get("token_report")
+    
+    @property
+    def token_results(self):
+        return self.outputs.get("token_results")
+    
     
     @property
     def average_silhouette_score(self):
