@@ -1108,7 +1108,7 @@ class DataAnnotator:
         self.analysis_data.merge(prediction_entropy_df, left_index=True, right_index=True, how='left')
     
     def annotate_pretrained_coordinates(self):
-        self.analysis_data = self.analysis_data.merge(self.pretrained_coordinates, on='global_ids')
+        self.analysis_data = self.analysis_data.merge(self.pretrained_coordinates, on='global_id')
 
     def annotate_all(self):
         self.analysis_df = self.analysis_data.copy()
@@ -1119,6 +1119,7 @@ class DataAnnotator:
         self.annotate_entity()
         self.annotate_error_types()
         self.annotate_prediction_entropy()
+        self.annotate_pretrained_coordinates()
         return self.analysis_df
     
 
@@ -1352,6 +1353,14 @@ class Entity:
                 if i + j == id:
                     return t, j
                 i = i + 1
+    
+    def generate_entity_confusion_data(
+        self,
+    ):
+        confusion_data = pd.DataFrame()
+        confusion_data["true_entity"] = self.seq_true
+        confusion_data["pred_entity"] = self.seq_pred    
+        return confusion_data
                 
 
 

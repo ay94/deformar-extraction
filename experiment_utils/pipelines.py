@@ -141,7 +141,7 @@ class AnalysisExtractionPipeline:
                 output_pipeline.get('pretrained_model_outputs'), output_pipeline.data_manager, split
             )
             
-            self.entity_evaluation = Entity(
+            self.entity_confusion = Entity(
                 results.entity_outputs
             )
             
@@ -162,12 +162,18 @@ class AnalysisExtractionPipeline:
         """
         try:
             analysis_data, average_silhouette_score, kmeans_metrics =  self.analysis_manager.run()
+            attention_similarity_matrix = self.training_impact.compute_attention_similarities()
+            attention_weights_similarity = self.training_impact.compare_weights()
+            entity_confusion_data = self.entity_confusion.generate_entity_confusion_data()
             
             
             return {
                   "analysis_data": analysis_data,
                   "average_silhouette_score": average_silhouette_score,
                   "kmeans_metrics": kmeans_metrics,
+                  "attention_similarity_matrix": attention_similarity_matrix,
+                  "attention_weights_similarity": attention_weights_similarity,
+                  "entity_confusion_data": entity_confusion_data,
             }
         except Exception as e:
             logging.error("Error running AnalysisExtractionPipeline: %s", e)
