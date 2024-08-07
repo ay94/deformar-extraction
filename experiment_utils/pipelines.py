@@ -80,50 +80,6 @@ class OutputGenerationPipeline:
         except Exception as e:
             logging.error(f"Error during output generation: {e}")
             raise
-# class OutputGenerationPipeline:
-#     def __init__(self, model, data_manager, config_manager):
-#         """
-#         Initialize the OutputGenerationPipeline with the necessary components.
-        
-#         Args:
-#             model: The model to generate outputs from.
-#             data_manager: Manager for handling dataset operations.
-#             config_manager: Manager for accessing configuration settings.
-#         """
-#         self.model = model
-#         self.data_manager = data_manager
-#         self.config_manager = config_manager
-
-#     def run(self, split: str) -> Dict[str, object]:
-#         """
-#         Run the pipeline to generate model and tokenization outputs.
-
-#         Args:
-#             split (str): The data split to process (e.g., 'train', 'test', 'validation').
-
-#         Returns:
-#             Dict[str, object]: A dictionary containing model and tokenization outputs.
-#         """
-#         try:
-#             logging.info("Generating model outputs for split: %s", split)
-#             model_outputs_manager = ModelOutputWorkflowManager(
-#                 self.model, self.data_manager, self.config_manager.training_config, split
-#             )
-            
-#             logging.info(f"Generating tokenization outputs")
-#             tokenization_outputs_manager = TokenizationWorkflowManager(
-#                 self.data_manager.corpus, self.config_manager.tokenization_config
-#             )
-
-#             return {
-#                 "model_outputs": model_outputs_manager,
-#                 "tokenization_outputs": tokenization_outputs_manager
-#             }
-#         except Exception as e:
-#             logging.error("Error during output generation: %s", e)
-#             raise
-
-
 
 class AnalysisExtractionPipeline:
     def __init__(self, output_pipeline: Dict[str, object], results, config_manager, split: str):
