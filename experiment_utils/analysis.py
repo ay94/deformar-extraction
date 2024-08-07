@@ -1139,12 +1139,16 @@ class AnalysisWorkflowManager:
     def extract_analysis_data(self):
         try:
             analysis_data_extractor = DataExtractor(
-                self.tokenization_outputs.get_split(self.split), self.model_outputs.get_split(self.split), self.aligner, self.transformer
+                tokenization_outputs=self.tokenization_outputs.get_split(self.split), 
+                model_outputs=self.model_outputs.get_split(self.split), 
+                aligner=self.aligner, transformer=self.transformer
             )
             analysis_df = analysis_data_extractor.to_df()
             flat_data = analysis_data_extractor.extract_features()
             pretrained_coordinates_extractor = DataExtractor(
-                self.tokenization_outputs.get_split(self.split), self.pretrained_model_outputs.get_split(self.split),  self.transformer
+                tokenization_outputs=self.tokenization_outputs.get_split(self.split), 
+                model_outputs=self.pretrained_model_outputs.get_split(self.split),
+                transformer=self.transformer
             )
             pretrained_coordinates = pretrained_coordinates_extractor.to_df()
             return analysis_df, flat_data, pretrained_coordinates
