@@ -2,7 +2,9 @@ from dataclasses import dataclass, field
 import torch
 import logging
 from tqdm.autonotebook import tqdm
-
+from dataclasses import dataclass
+import torch
+from tqdm.autonotebook import tqdm
 @dataclass
 class SentenceData:
     input_ids: torch.Tensor
@@ -164,9 +166,7 @@ class ModelOutputWorkflowManager:
                 return self.validation
 
 
-from dataclasses import dataclass
-import torch
-from tqdm.autonotebook import tqdm
+
 
 @dataclass
 class PretrainedModelSentenceData:
