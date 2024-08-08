@@ -685,7 +685,7 @@ class DataExtractor:
         return self
 
     def align_labels(self):
-        aligned_labels = aligner.align_labels()
+        aligned_labels = self.aligner.align_labels()
         self.pred_labels = [label for sentence in aligned_labels for label in sentence]
         self.agreements = np.array(self.true_labels) == np.array(self.pred_labels)
 
