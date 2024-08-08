@@ -291,6 +291,9 @@ class DatasetManager:
         self.corpora = corpora_fh.load_json(corpora_file_name)
         self.corpus = self.get_corpus(dataset_name)
         self.data = self.corpus['splits']
+        self.labels = self.corpus['labels']
+        self.labels_map = self.corpus['labels_map']
+        self.inv_labels_map = {v: k for k, v in self.labels_map.items()}
 
     def get_corpus(self, data_name: str) -> Dict[str, Any]:
         """
@@ -335,7 +338,7 @@ class DatasetManager:
         return TCDataset(
             texts=[x['words'] for x in self.data[split]],
             tags=[x['tags'] for x in self.data[split]],
-            label_map=self.corpus["labels_map"],
+            label_map=self.labels_map,
             config=self.config,
         )
 
@@ -413,7 +416,7 @@ class FineTuneUtils:
         return total_loss / len(data_loader)
 
     @staticmethod
-    def eval_fn(data_loader, model, device, inv_map, evaluation_config):
+    def eval_fn(data_loader, model, device, inv_labels_map, evaluation_config):
         model.eval()
         with torch.no_grad():
             total_loss = 0
@@ -436,7 +439,7 @@ class FineTuneUtils:
             labels = labels.cpu().numpy()
             average_loss = total_loss / len(data_loader)
 
-            evaluator = Evaluation(inv_map, labels, preds, average_loss, evaluation_config)
+            evaluator = Evaluation(inv_labels_map, labels, preds, average_loss, evaluation_config)
             results = evaluator.generate_results()
             metrics = Metrics.from_dict(results)
 
@@ -452,7 +455,6 @@ class Trainer:
         self.train_dataloader = None
         self.test_dataloader = None
         self.validation_dataloader = None
-        self.inv_labels_map = None
         self.args = args
         self.data_manager = data_manager
         self.use_cross_validation = use_cross_validation
@@ -468,8 +470,6 @@ class Trainer:
         self.validation_dataloader = self.data_manager.get_dataloader('validation', self.args.test_batch_size)
         # Initialize optimizer and scheduler
         self.setup_optimizer_scheduler(self.model, self.args)
-
-        self.inv_labels_map = {v: k for k, v in self.data_manager.corpus.get('labels_map').items()}
 
     def setup_optimizer_scheduler(self, model, args):
         param_optimizer = list(model.named_parameters())
@@ -523,7 +523,7 @@ class Trainer:
             dataloader,
             self.model,
             self.device,
-            self.inv_labels_map,
+            self.data_manager.inv_labels_map,
             self.args
         )
         return eval_metrics, eval_loss
