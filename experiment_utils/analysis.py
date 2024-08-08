@@ -7,7 +7,7 @@ import logging
 from collections import defaultdict
 from tqdm.autonotebook import tqdm
 import torch
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, InitVar 
 from sklearn.metrics import silhouette_samples
 from umap import UMAP
 from sklearn.preprocessing import normalize
@@ -82,10 +82,10 @@ class LabelAligner:
 
 
 
-class DataTransformer:
+class UMAPTransformer:
     def __init__(self, umap_config):
         """
-        Initialize the DataTransformer with configuration for UMAP.
+        Initialize the UMAPTransformer with configuration for UMAP.
         """
         self.umap_config = umap_config
 
@@ -359,12 +359,110 @@ class DataTransformer:
 #         df['global_id'] = UtilityFunctions.global_ids_from_df(df)
 #         return df
 
+# @dataclass
+# class DataExtractor:
+#     tokenization_outputs: Optional[list] = field(default_factory=list)
+#     model_outputs: Optional[list] = field(default_factory=list)
+#     aligner: Optional['LabelAligner'] = field(default=None, repr=False)
+#     transformer: Optional['UMAPTransformer'] = field(default=None, repr=False)
+#     last_hidden_states: Optional[torch.Tensor] = field(init=False, default=None)
+#     labels: Optional[torch.Tensor] = field(init=False, default=None)
+#     losses: Optional[torch.Tensor] = field(init=False, default=None)
+#     token_ids: Optional[torch.Tensor] = field(init=False, default=None)
+#     words: Optional[list] = field(init=False, default_factory=list)
+#     tokens: Optional[list] = field(init=False, default_factory=list)
+#     word_pieces: Optional[list] = field(init=False, default_factory=list)
+#     core_tokens: Optional[list] = field(init=False, default_factory=list)
+#     true_labels: Optional[list] = field(init=False, default_factory=list)
+#     pred_labels: Optional[list] = field(init=False, default_factory=list)
+#     sentence_ids: Optional[list] = field(init=False, default_factory=list)
+#     token_positions: Optional[list] = field(init=False, default_factory=list)
+#     token_selector_id: Optional[list] = field(init=False, default_factory=list)
+#     agreements: Optional[list] = field(init=False, default_factory=list)
+#     x: Optional[list] = field(init=False, default_factory=list)
+#     y: Optional[list] = field(init=False, default_factory=list)
+
+#     def __post_init__(self):
+#         if self.model_outputs and self.tokenization_outputs:
+#             self.extract_features()
+#         if self.aligner:
+#             self.align_labels()
+#         if self.transformer:
+#             self.apply_umap()
+
+#     def extract_features(self):
+#         """Extract features from the model outputs."""
+#         self.last_hidden_states = torch.cat([s.last_hidden_states for s in self.model_outputs])
+#         if hasattr(self.model_outputs[0], 'labels'):
+#             self.labels = torch.cat([s.labels for s in self.model_outputs])
+#         if hasattr(self.model_outputs[0], 'losses'):
+#             self.losses = torch.cat([s.losses for s in self.model_outputs])
+#         if hasattr(self.model_outputs[0], 'input_ids'):
+#             self.token_ids = torch.cat([s.input_ids for s in self.model_outputs])
+
+#         self.words = [word for sentence in self.tokenization_outputs for word in sentence.words_df]
+#         self.tokens = [token for sentence in self.tokenization_outputs for token in sentence.tokens_df]
+#         self.word_pieces = [wp for sentence in self.tokenization_outputs for wp in sentence.word_pieces_df]
+#         self.core_tokens = [ct for sentence in self.tokenization_outputs for ct in sentence.core_tokens_df]
+#         self.true_labels = [label for sentence in self.tokenization_outputs for label in sentence.labels_df]
+#         self.sentence_ids = [index for sentence in self.tokenization_outputs for index in sentence.sentence_index_df]
+#         self.token_positions = [position for sentence in self.tokenization_outputs for position in range(len(sentence.tokens_df))]
+#         self.token_selector_id = [
+#             f"{core_token}@#{token_position}@#{sentence_index}"
+#             for core_token, token_position, sentence_index in
+#             zip(self.core_tokens, self.token_positions, self.sentence_ids)
+#         ]
+#         return self
+
+#     def align_labels(self):
+#         """Align labels according to aligner's method."""
+#         aligned_labels = self.aligner.align_labels()
+#         self.pred_labels = [label for sentence in aligned_labels for label in sentence]
+#         self.agreements = np.array(self.true_labels) == np.array(self.pred_labels)
+#         return self
+
+#     def apply_umap(self):
+#         """Apply dimension reduction using UMAP."""
+#         coordinates = self.transformer.apply_umap(self.last_hidden_states.cpu().numpy())
+#         self.x, self.y = coordinates
+#         return self
+    
+#     def to_dict(self):
+#       """Convert extracted data to a dictionary."""
+#       exclude_fields = {'tokenization_outputs', 'model_outputs', 'aligner', 'transformer', 'last_hidden_states'}
+#       data_dict = {}
+#       for field_name in self.__dataclass_fields__:
+#         if field_name not in exclude_fields:
+#           value = getattr(self, field_name)
+#           if value is not None and (not isinstance(value, (list, np.ndarray, torch.Tensor)) or len(value) > 0):
+#               if isinstance(value, torch.Tensor):
+#                   data_dict[field_name] = value.cpu().tolist()
+#               elif isinstance(value, np.ndarray):
+#                   data_dict[field_name] = value.tolist()
+#               else:
+#                   data_dict[field_name] = value
+#       return data_dict
+
+
+#     def to_df(self, is_pretrained: bool = False):
+#         """Convert data to pandas DataFrame and compute global ID."""
+#         data_dict = self.to_dict()
+#         if is_pretrained:
+#             df = pd.DataFrame(data_dict)
+#             df['global_id'] = UtilityFunctions.global_ids_from_df(df)
+#             df = df.rename(columns={'x': 'pre_x', 'y': 'pre_y'})
+#             df = df[['global_id', 'pre_x', 'pre_y']]
+#         else:
+#             df = pd.DataFrame(data_dict)
+#             df['global_id'] = UtilityFunctions.global_ids_from_df(df)
+#         return df
+
 @dataclass
-class DataExtractor:
+class DeprecatedDataExtractor:
     tokenization_outputs: Optional[list] = field(default_factory=list)
     model_outputs: Optional[list] = field(default_factory=list)
     aligner: Optional['LabelAligner'] = field(default=None, repr=False)
-    transformer: Optional['DataTransformer'] = field(default=None, repr=False)
+    transformer: Optional['UMAPTransformer'] = field(default=None, repr=False)
     last_hidden_states: Optional[torch.Tensor] = field(init=False, default=None)
     labels: Optional[torch.Tensor] = field(init=False, default=None)
     losses: Optional[torch.Tensor] = field(init=False, default=None)
@@ -385,12 +483,21 @@ class DataExtractor:
     def __post_init__(self):
         if self.model_outputs and self.tokenization_outputs:
             self.extract_features()
+        if self.model_outputs:
+            self.extract_model_features()
+        if self.tokenization_outputs:
+            self.extract_tokenization_features()
         if self.aligner:
             self.align_labels()
         if self.transformer:
             self.apply_umap()
-
+    
     def extract_features(self):
+        self.extract_model_features()
+        self.extract_tokenization_features()
+        return self
+
+    def extract_model_features(self):
         """Extract features from the model outputs."""
         self.last_hidden_states = torch.cat([s.last_hidden_states for s in self.model_outputs])
         if hasattr(self.model_outputs[0], 'labels'):
@@ -400,6 +507,7 @@ class DataExtractor:
         if hasattr(self.model_outputs[0], 'input_ids'):
             self.token_ids = torch.cat([s.input_ids for s in self.model_outputs])
 
+    def extract_tokenization_features(self):
         self.words = [word for sentence in self.tokenization_outputs for word in sentence.words_df]
         self.tokens = [token for sentence in self.tokenization_outputs for token in sentence.tokens_df]
         self.word_pieces = [wp for sentence in self.tokenization_outputs for wp in sentence.word_pieces_df]
@@ -412,7 +520,6 @@ class DataExtractor:
             for core_token, token_position, sentence_index in
             zip(self.core_tokens, self.token_positions, self.sentence_ids)
         ]
-        return self
 
     def align_labels(self):
         """Align labels according to aligner's method."""
@@ -457,6 +564,246 @@ class DataExtractor:
             df['global_id'] = UtilityFunctions.global_ids_from_df(df)
         return df
 
+
+
+
+class ModelFeatureExtractor:
+    def __init__(self, model_outputs):
+        self.model_outputs = model_outputs
+
+    def extract_features(self):
+        # Initialize lists to store features
+        last_hidden_states = []
+        labels = []
+        losses = []
+        token_ids = []
+        sentence_ids = []
+        token_positions = []
+
+        # Iterate over each model output, which represents a sentence
+        for idx, output in enumerate(self.model_outputs):
+            if hasattr(output, 'input_ids'):
+                # Convert tensor of input_ids to a list of integers
+                input_ids = output.input_ids.tolist() if torch.is_tensor(output.input_ids) else output.input_ids
+                token_ids.extend(input_ids)
+                sentence_ids.extend([idx] * len(input_ids))
+                token_positions.extend(list(range(len(input_ids))))
+
+            if hasattr(output, 'last_hidden_states'):
+                last_hidden_states.append(output.last_hidden_states)
+
+            if hasattr(output, 'labels'):
+                labels.extend(output.labels if isinstance(output.labels, list) else output.labels.tolist())
+
+            if hasattr(output, 'losses'):
+                losses.extend(output.losses if isinstance(output.losses, list) else output.losses.tolist())
+
+        # Concatenate tensors where applicable and convert to list
+        features = {
+            'last_hidden_states': torch.cat(last_hidden_states) if last_hidden_states else [],
+            'labels': labels,
+            'losses': losses,
+            'token_ids': token_ids,
+            'sentence_ids': sentence_ids,
+            'token_positions': token_positions
+        }
+        return features
+
+class TokenizationFeatureExtractor:
+    def __init__(self, tokenization_outputs):
+        self.tokenization_outputs = tokenization_outputs
+
+    def extract_features(self):
+        attributes =  ['words', 'tokens', 'word_pieces', 'core_tokens']
+        features = {attr: [item for output in self.tokenization_outputs for item in getattr(output, f'{attr}_df')]
+                    for attr in attributes}
+        features['sentence_ids'] = [index for sentence in self.tokenization_outputs for index in sentence.sentence_index_df]
+        features['true_labels'] = [label for sentence in self.tokenization_outputs for label in sentence.labels_df]
+        features['token_positions'] = [pos for output in self.tokenization_outputs for pos in range(len(output.tokens_df))]
+        features['token_selector_id'] = [
+            f"{ct}@#{tp}@#{si}"
+            for ct, tp, si in zip(features['core_tokens'], features['token_positions'], features['sentence_ids'])
+        ]
+        return features
+
+
+@dataclass
+class DataExtractor:
+    model_outputs: Optional[List] = field(default_factory=list)
+    tokenization_outputs: Optional[List] = field(default_factory=list)
+    aligner: Optional['LabelAligner'] = None
+    transformer: Optional['UMAPTransformer'] = None
+
+    # Attributes from model features
+    last_hidden_states: Optional[torch.Tensor] = field(init=False, default=None)
+    labels: Optional[List] = field(init=False, default=list)
+    losses: Optional[List] = field(init=False, default=list)
+    token_ids: Optional[List[int]] = field(init=False, default=list)
+    sentence_ids: Optional[List[int]] = field(init=False, default=list)
+    token_positions: Optional[List[int]] = field(init=False, default=list)
+
+    # Attributes from tokenization features
+    words: Optional[list] = field(init=False, default_factory=list)
+    tokens: Optional[list] = field(init=False, default_factory=list)
+    word_pieces: Optional[list] = field(init=False, default_factory=list)
+    core_tokens: Optional[list] = field(init=False, default_factory=list)
+    true_labels: Optional[list] = field(init=False, default_factory=list)
+    sentence_ids: Optional[list] = field(init=False, default_factory=list)
+    token_positions: Optional[list] = field(init=False, default_factory=list)
+    token_selector_id: Optional[list] = field(init=False, default_factory=list)
+
+    # Attributes for aligned data or transformed data
+    pred_labels: Optional[list] = field(init=False, default_factory=list)
+    agreements: Optional[list] = field(init=False, default_factory=list)
+    x: Optional[list] = field(init=False, default_factory=list)
+    y: Optional[list] = field(init=False, default_factory=list)
+
+    def __post_init__(self):
+        self.extract_features()
+
+    def extract_features(self):
+        if self.model_outputs:
+            logging.info("Extracting model features...")
+            model_features = ModelFeatureExtractor(self.model_outputs).extract_features()
+            for key, value in model_features.items():
+                setattr(self, key, value)
+        
+        if self.tokenization_outputs:
+            logging.info("Extracting tokenization features...")
+            token_features = TokenizationFeatureExtractor(self.tokenization_outputs).extract_features()
+            for key, value in token_features.items():
+                setattr(self, key, value)
+        
+        # Example of handling alignment and transformation
+        if self.aligner:
+            logging.info("Aligning labels...")
+            self.align_labels()
+        if self.transformer:
+            logging.info("Applying UMAP...")  
+            self.apply_umap()
+
+        return self
+
+    def align_labels(self):
+        aligned_labels = aligner.align_labels()
+        self.pred_labels = [label for sentence in aligned_labels for label in sentence]
+        self.agreements = np.array(self.true_labels) == np.array(self.pred_labels)
+
+
+    def apply_umap(self):
+      if self.last_hidden_states is not None:
+          logging.info("Applying UMAP...")
+          if isinstance(self.last_hidden_states, torch.Tensor):
+              # Ensuring the tensor is on CPU and converting to NumPy array
+              coordinates = self.transformer.apply_umap(self.last_hidden_states.cpu().numpy())
+              self.x, self.y = coordinates
+          else:
+              logging.error("Expected last_hidden_states to be a torch.Tensor but got another type.")
+      else:
+          logging.warning("last_hidden_states is None, skipping UMAP application.")
+
+    
+    def validate_attribute_lengths(self, attributes):
+        """ Validate that all relevant attributes in the dictionary have the same length. """
+        length = None
+        attribute_name = None
+        try:
+            for attribute, value in attributes.items():
+                # Check if the value is an instance and not empty
+                if isinstance(value, (list, np.ndarray)) and (len(value) > 0):
+                    if length is None:
+                        length = len(value)
+                        attribute_name = attribute
+                    elif length != len(value):
+                        raise ValueError(f"Length mismatch: '{attribute_name}' has length {length}, but '{attribute}' has length {len(value)}")
+        except Exception as e:
+            raise ValueError(f"Error during length validation: {str(e)}")
+
+    def to_dict(self):
+        # Exclude fields with None values and return as dictionary
+        exclude_fields = {'model_outputs', 'tokenization_outputs', 'aligner', 'transformer', 'last_hidden_states'}
+        return {k: v for k, v in vars(self).items() if k not in exclude_fields and v is not None and len(v) > 0}
+
+    def to_df(self, columns_map=None, required_columns=None):
+        # Convert to DataFrame, handling cases where lists are involved
+        data_dict = self.to_dict()
+        self.validate_attribute_lengths(data_dict)
+        df = pd.DataFrame(data_dict)
+
+        # Apply global IDs computation if the necessary columns exist
+        if 'token_ids' in df.columns and 'sentence_ids' in df.columns and 'token_positions' in df.columns and 'labels' in df.columns:
+            df['global_id'] = UtilityFunctions.global_ids_from_df(df)
+
+        # Rename columns based on a passed dictionary
+        if columns_map:
+            df.rename(columns=columns_map, inplace=True)
+
+        # Select only the required columns if specified
+        if required_columns:
+            df = df[required_columns]
+        return df
+
+
+@dataclass
+class DynamicDataExtractor:
+    
+    model_outputs: InitVar[Optional[List]] = None
+    tokenization_outputs: InitVar[Optional[List]] = None
+    aligner: InitVar[Optional['LabelAligner']] = None
+    transformer: InitVar[Optional['UMAPTransformer']] = None
+
+    def __post_init__(self, model_outputs, tokenization_outputs, aligner, transformer):
+        # Automatically process the data if not already processed
+        self.extract_features(model_outputs, tokenization_outputs, aligner, transformer)
+
+    def extract_features(self, model_outputs, tokenization_outputs, aligner, transformer):
+        if model_outputs:
+              model_features = ModelFeatureExtractor(model_outputs).extract_features()
+              self.__dict__.update(model_features)
+          
+        if tokenization_outputs:
+              token_features = TokenizationFeatureExtractor(tokenization_outputs).extract_features()
+              self.__dict__.update(token_features)
+
+        if aligner:
+             self.align_labels(aligner)
+
+        if transformer and 'last_hidden_states' in self.__dict__:
+            self.apply_umap(transformer)
+        return self
+
+    def align_labels(self, aligner):
+        aligned_labels = aligner.align_labels()
+        self.pred_labels = [label for sentence in aligned_labels for label in sentence]
+        self.agreements = np.array(self.true_labels) == np.array(self.pred_labels)
+        self.__dict__.update({'pred_labels': self.pred_labels, 'agreements': self.agreements})
+
+    def apply_umap(self, transformer):
+        coordinates = transformer.apply_umap(self.last_hidden_states.cpu().numpy())
+        self.x, self.y = coordinates
+        self.__dict__.update({'x': self.x, 'y': self.y})
+
+    def to_dict(self):
+        # exclude_fields = {'tokenization_outputs', 'model_outputs', 'aligner', 'transformer', 'last_hidden_states'}
+        exclude_fields = {'last_hidden_states'}
+        return {k: v for k, v in self.__dict__.items() if k not in exclude_fields and v is not None and not callable(v)}
+
+    def to_df(self, columns_map=None, required_columns=None):
+        data_dict = self.to_dict()
+        df = pd.DataFrame(data_dict)
+
+        # Apply global IDs computation if the necessary columns exist
+        if 'token_ids' in df.columns and 'sentence_ids' in df.columns and 'token_positions' in df.columns and 'labels' in df.columns:
+            df['global_id'] = UtilityFunctions.global_ids_from_df(df)
+
+        # Rename columns based on a passed dictionary
+        if columns_map:
+            df.rename(columns=columns_map, inplace=True)
+
+        # Select only the required columns if specified
+        if required_columns:
+            df = df[required_columns]
+        return df
 
 class UtilityFunctions:
     @staticmethod
@@ -915,10 +1262,84 @@ class PredictionEntropyCalculator:
         prediction_analysis["global_id"] = UtilityFunctions.generate_global_ids(model_outputs)
         return prediction_analysis
     
+# class ClusterAnalysis:
+#     def __init__(self, flat_data, analysis_df, config):
+#         self.flat_data = flat_data
+#         self.labels_mask = np.array(self.flat_data.labels != -100)
+#         self.states = self.flat_data.last_hidden_states[self.labels_mask]
+#         self.true_labels = analysis_df["true_labels"][self.labels_mask]
+#         self.pred_labels = analysis_df["pred_labels"][self.labels_mask]
+#         self.df = pd.DataFrame()
+#         self.df['global_id'] = UtilityFunctions.global_ids_from_df(analysis_df[self.labels_mask]).copy()
+#         self.config = config
+        
+#     def normalize_states(self):
+#         return normalize(self.states, norm=self.config.norm, axis=1)
+
+#     def calculate_silhouette_scores(self):
+#         truth_token_score = silhouette_samples(self.states, self.true_labels, metric=self.config.silhouette_metric)
+#         pred_token_score = silhouette_samples(self.states, self.pred_labels, metric=self.config.silhouette_metric)
+
+#         self.df['true_token_score'] = truth_token_score
+#         self.df['pred_token_score'] = pred_token_score
+#         average_silhouette_score = {
+#             'true_score':self.df['true_token_score'].mean(),
+#             'pred_score':self.df['pred_token_score'].mean()
+#         }
+#         return average_silhouette_score
+      
+#     def apply_kmeans(self, k):
+#         kmeans_model = KMeans(n_clusters=k, init= self.config.init_method, n_init=self.config.n_init, random_state=self.config.random_state)
+#         normalized_states = self.normalize_states()
+#         kmeans_model.fit(normalized_states)
+#         cluster_labels = [f"cluster-{lb}" for lb in kmeans_model.labels_]
+#         return kmeans_model.cluster_centers_, cluster_labels, kmeans_model.labels_
+
+#     def generate_clustering_outputs(self, k):
+#         _, cluster_labels, kmeans_labels = self.apply_kmeans(k)
+
+#         self.df[f"k={k}"] = cluster_labels
+#         aligned_labels = self.align_labels(self.true_labels, k)
+#         self.df[self.config.n_clusters_map[k]] = aligned_labels
+#         # aligned_labels = self.true_labels
+
+#         metrics = homogeneity_completeness_v_measure(aligned_labels, kmeans_labels)
+#         clustering_metrics = {
+#             "homogeneity": metrics[0],
+#             "completeness": metrics[1],
+#             "v_measure": metrics[2],
+#         }
+
+#         return clustering_metrics
+    
+#     def align_labels(self, true_labels, k):
+#         aligned_labels = []
+#         for label in true_labels:
+#             match k:
+#                 case 3:
+#                     aligned_labels.append(label.split('-')[0])
+#                 case 4:
+#                     aligned_labels.append(label.split('-')[-1])
+#                 case 9:
+#                     aligned_labels.append(label) 
+#         return aligned_labels
+                
+            
+    
+#     def calculate(self):
+#         logging.info('Calculating Silhouette Score')
+#         average_silhouette_score = self.calculate_silhouette_scores()
+#         kmeans_metrics = {}
+#         for k in self.config.n_clusters:
+#             logging.info('Processing K=%s', k)
+#             clustering_results = self.generate_clustering_outputs(k)
+#             kmeans_metrics[f"k={k}"] = clustering_results
+
+#         return average_silhouette_score, kmeans_metrics, self.df
 class ClusterAnalysis:
     def __init__(self, flat_data, analysis_df, config):
         self.flat_data = flat_data
-        self.labels_mask = np.array(self.flat_data.labels != -100)
+        self.labels_mask = np.array(self.flat_data.labels) != -100
         self.states = self.flat_data.last_hidden_states[self.labels_mask]
         self.true_labels = analysis_df["true_labels"][self.labels_mask]
         self.pred_labels = analysis_df["pred_labels"][self.labels_mask]
@@ -949,7 +1370,7 @@ class ClusterAnalysis:
         return kmeans_model.cluster_centers_, cluster_labels, kmeans_model.labels_
 
     def generate_clustering_outputs(self, k):
-        _, cluster_labels, kmeans_labels = self.apply_kmeans(k)
+        centroids, cluster_labels, kmeans_labels = self.apply_kmeans(k)
 
         self.df[f"k={k}"] = cluster_labels
         aligned_labels = self.align_labels(self.true_labels, k)
@@ -961,6 +1382,9 @@ class ClusterAnalysis:
             "homogeneity": metrics[0],
             "completeness": metrics[1],
             "v_measure": metrics[2],
+            "centroids": centroids,
+            "labels": kmeans_labels,
+            "aligned_labels": aligned_labels
         }
 
         return clustering_metrics
@@ -976,8 +1400,23 @@ class ClusterAnalysis:
                 case 9:
                     aligned_labels.append(label) 
         return aligned_labels
-                
-            
+
+    def calculate_centroid_average_similarity(self, kmeans_metrics):
+
+        ner_labels = np.array(kmeans_metrics['k=9']['aligned_labels'])
+        cluster_labels = kmeans_metrics['k=9']['labels']
+        centroids = kmeans_metrics['k=9']['centroids']
+        # Calculate cosine similarities and then convert to a DataFrame
+        similarity_matrix = 1 - cdist(self.states, centroids, metric='cosine')
+        df = pd.DataFrame(similarity_matrix, columns=[f'Centroid_{i}' for i in range(centroids.shape[0])])
+        df['NER_Labels'] = ner_labels
+        
+        # Compute average similarities for each NER label per centroid
+        avg_similarities = df.groupby('NER_Labels').mean().reset_index()
+        avg_similarities.rename(columns={'NER_Labels': 'NER_Label'}, inplace=True)
+        
+        return avg_similarities
+
     
     def calculate(self):
         logging.info('Calculating Silhouette Score')
@@ -987,8 +1426,16 @@ class ClusterAnalysis:
             logging.info('Processing K=%s', k)
             clustering_results = self.generate_clustering_outputs(k)
             kmeans_metrics[f"k={k}"] = clustering_results
+        logging.info('Calculating Centorid Average Similarity Matrix')
+        centroids_avg_similarities = self.calculate_centroid_average_similarity(kmeans_metrics)
 
-        return average_silhouette_score, kmeans_metrics, self.df
+        for k in kmeans_metrics:
+            kmeans_metrics[k].pop("centroids", None)
+            kmeans_metrics[k].pop("aligned_labels", None)
+            kmeans_metrics[k].pop("labels", None)
+
+        return average_silhouette_score, kmeans_metrics, self.df, centroids_avg_similarities
+
 
 # class DataAnnotator:
 #     def __init__(self, subwords, analysis_data, train_data, model_outputs, labels_map):
@@ -1053,15 +1500,85 @@ class ClusterAnalysis:
 #         self.annotate_prediction_entropy()
 #         return self.analysis_df
 
+# class DataAnnotator:
+#     def __init__(self, subwords, analysis_data, pretrained_coordinates, train_data, model_outputs, labels_map):
+#         self.subwords = subwords
+#         self.analysis_data = analysis_data
+#         self.pretrained_coordinates = pretrained_coordinates
+#         self.train_data = train_data
+#         self.model_outputs = model_outputs
+#         self.labels_map = labels_map
+#         self.analysis_df = None
+
+#     def annotate_tokenization_rate(self):
+#         """Annotate the tokenization rate for each word based on the number of subwords."""
+#         self.analysis_data['tokenization_rate'] = self.analysis_data['word_pieces'].apply(lambda x: len(x) if isinstance(x, list) else 0)
+    
+#     def annotate_consistency(self):
+#         logging.info("Annotating consistency...")
+#         consistency_results = TokenConsistencyCalculator.calculate(self.subwords, self.analysis_data)
+#         self.analysis_data = pd.concat([self.analysis_data, consistency_results], axis=1)
+    
+#     def annotate_token_entropy(self):
+#         logging.info("Annotating token entropy...")
+#         token_entropy = TokenEntropyCalculator.calculate(self.subwords)
+#         self.analysis_data = self.analysis_data.merge(token_entropy, left_on='core_tokens', right_on='train_token', how='left')
+#         self.analysis_data['local_token_entropy'] = self.analysis_data['local_token_entropy'].fillna(-1)
+#         self.analysis_data['token_max_entropy'] = self.analysis_data['token_max_entropy'].fillna(-1)
+#         self.analysis_data['dataset_token_entropy'] = self.analysis_data['dataset_token_entropy'].fillna(-1)
+#         self.analysis_data.drop('train_token', axis=1, inplace=True)
+
+    
+#     def annotate_word_entropy(self):
+#         logging.info("Annotating word entropy...")
+#         word_entropy = WordEntropyCalculator.calculate(self.train_data)
+#         self.analysis_data = self.analysis_data.merge(word_entropy, left_on='words', right_on='train_word', how='left')
+#         self.analysis_data['local_word_entropy'] = self.analysis_data['local_word_entropy'].fillna(-1)
+#         self.analysis_data['word_max_entropy'] = self.analysis_data['word_max_entropy'].fillna(-1)
+#         self.analysis_data['dataset_word_entropy'] = self.analysis_data['dataset_word_entropy'].fillna(-1)
+#         self.analysis_data.drop('train_word', axis=1, inplace=True)
+    
+#     def annotate_error_types(self):
+#         logging.info("Annotating error types...")
+#         self.analysis_data['error_type'] = self.analysis_data.apply(UtilityFunctions.error_type, axis=1)
+    
+#     def annotate_entity(self):
+#         logging.info("Annotating entity...")
+#         self.analysis_data["tr_entity"] = self.analysis_data["true_labels"].apply(
+#             lambda x: x if x in ["[CLS]", "[SEP]", "IGNORED"] else x.split("-")[-1]
+#         )
+#         self.analysis_data["pr_entity"] = self.analysis_data["pred_labels"].apply(
+#             lambda x: x if x in ["[CLS]", "[SEP]", "IGNORED"] else x.split("-")[-1]
+#         )
+#     def annotate_prediction_entropy(self):
+#         prediction_entropy_df = PredictionEntropyCalculator.calculate(self.model_outputs, self.labels_map)
+#         self.analysis_data.merge(prediction_entropy_df, left_index=True, right_index=True, how='left')
+    
+#     def annotate_pretrained_coordinates(self):
+#         self.analysis_data = self.analysis_data.merge(self.pretrained_coordinates, on='global_id')
+
+#     def annotate_all(self):
+#         self.analysis_df = self.analysis_data.copy()
+#         self.annotate_consistency()
+#         self.annotate_token_entropy()
+#         self.annotate_word_entropy()
+#         self.annotate_tokenization_rate()
+#         self.annotate_entity()
+#         self.annotate_error_types()
+#         self.annotate_prediction_entropy()
+#         self.annotate_pretrained_coordinates()
+#         return self.analysis_df
+    
 class DataAnnotator:
     def __init__(self, subwords, analysis_data, pretrained_coordinates, train_data, model_outputs, labels_map):
         self.subwords = subwords
-        self.analysis_data = analysis_data
+        self.original_data = analysis_data.copy()  # Keep an original copy for fresh starts
         self.pretrained_coordinates = pretrained_coordinates
         self.train_data = train_data
         self.model_outputs = model_outputs
         self.labels_map = labels_map
-        self.analysis_df = None
+        self.analysis_data = analysis_data.copy()
+        
 
     def annotate_tokenization_rate(self):
         """Annotate the tokenization rate for each word based on the number of subwords."""
@@ -1104,14 +1621,27 @@ class DataAnnotator:
             lambda x: x if x in ["[CLS]", "[SEP]", "IGNORED"] else x.split("-")[-1]
         )
     def annotate_prediction_entropy(self):
+        logging.info("Annotating prediction entropy...")
         prediction_entropy_df = PredictionEntropyCalculator.calculate(self.model_outputs, self.labels_map)
-        self.analysis_data.merge(prediction_entropy_df, left_index=True, right_index=True, how='left')
+        self.analysis_data = self.analysis_data.merge(prediction_entropy_df, on='global_id')
     
     def annotate_pretrained_coordinates(self):
+        logging.info("Annotating pretrained coordinates...")
+        if 'global_id' not in self.analysis_data.columns:
+          logging.error("Column 'global_id' is missing from analysis data.")
+          raise KeyError("Column 'global_id' is missing from analysis data.")
+        if 'global_id' not in self.pretrained_coordinates.columns:
+          logging.error("Column 'global_id' is missing from pretrained coordinates.")
+          raise KeyError("Column 'global_id' is missing from pretrained coordinates.")
         self.analysis_data = self.analysis_data.merge(self.pretrained_coordinates, on='global_id')
 
+    def reset_data(self):
+        """Reset analysis data to the original state to avoid cumulative effects."""
+        self.analysis_data = self.original_data.copy()
+
     def annotate_all(self):
-        self.analysis_df = self.analysis_data.copy()
+        logging.info("Annotating all...")
+        self.reset_data()  # Start with a fresh state
         self.annotate_consistency()
         self.annotate_token_entropy()
         self.annotate_word_entropy()
@@ -1120,14 +1650,84 @@ class DataAnnotator:
         self.annotate_error_types()
         self.annotate_prediction_entropy()
         self.annotate_pretrained_coordinates()
-        return self.analysis_df
+        return self.analysis_data
     
 
+
+# class AnalysisWorkflowManager:
+#     def __init__(self, config_manager, evaluation_results, tokenization_outputs, model_outputs, pretrained_model_outputs, data_manager, split):
+#         self.transformer = UMAPTransformer(config_manager.umap_config)
+#         self.aligner = LabelAligner(
+#             evaluation_results.entity_outputs['y_pred'].copy(), tokenization_outputs.get_split(split)
+#         )
+#         self.config_manager = config_manager
+#         self.tokenization_outputs = tokenization_outputs
+#         self.model_outputs = model_outputs
+#         self.pretrained_model_outputs = pretrained_model_outputs
+#         self.data_manager = data_manager
+#         self.split = split
+
+#     def extract_analysis_data(self):
+#         try:
+#             analysis_data_extractor = DataExtractor(
+#                 tokenization_outputs=self.tokenization_outputs.get_split(self.split), 
+#                 model_outputs=self.model_outputs.get_split(self.split), 
+#                 aligner=self.aligner, transformer=self.transformer
+#             )
+#             analysis_df = analysis_data_extractor.to_df()
+#             flat_data = analysis_data_extractor.extract_features()
+#             pretrained_coordinates_extractor = DataExtractor(
+#                 tokenization_outputs=self.tokenization_outputs.get_split(self.split), 
+#                 model_outputs=self.pretrained_model_outputs.get_split(self.split),
+#                 transformer=self.transformer
+#             )
+#             pretrained_coordinates = pretrained_coordinates_extractor.to_df()
+#             return analysis_df, flat_data, pretrained_coordinates
+#         except Exception as e:
+#             logging.error("Error in data extraction: %s", e)
+#             raise
+
+#     def perform_clustering(self, analysis_df, flat_data):
+#         try:
+#             clustering_analyser = ClusterAnalysis(flat_data, analysis_df, self.config_manager.clustering_config)
+#             average_silhouette_score, kmeans_metrics, clustering_df = clustering_analyser.calculate()
+#             merged_data = analysis_df.merge(clustering_df, on='global_id', how='left')
+#             return merged_data, average_silhouette_score, kmeans_metrics
+#         except Exception as e:
+#             logging.error("Error in clustering analysis: %s", e)
+#             raise
+
+#     def annotate_data(self, merged_data, pretrained_data):
+#         try:
+#             data_annotator = DataAnnotator(
+#                 self.tokenization_outputs.train_subwords,
+#                 merged_data,
+#                 pretrained_data,
+#                 self.data_manager.data.get('train'),
+#                 self.model_outputs.test,
+#                 self.data_manager.corpus['labels_map'],
+#             )
+#             return data_annotator.annotate_all()
+#         except Exception as e:
+#             logging.error("Error in data annotation:%s", e)
+#             raise
+
+#     def run(self):
+#         start_time = time.time()
+#         analysis_df, flat_data, pretrained_coordinates = self.extract_analysis_data()
+#         merged_data, average_silhouette_score, kmeans_metrics = self.perform_clustering(analysis_df, flat_data)
+#         analysis_data = self.annotate_data(merged_data, pretrained_coordinates)
+#         end_time = time.time()
+#         execution_time = end_time - start_time
+#         logging.info("Analysis workflow execution time: %s seconds", execution_time)
+#         return analysis_data, average_silhouette_score, kmeans_metrics
+
+
 class AnalysisWorkflowManager:
-    def __init__(self, config_manager, results, tokenization_outputs, model_outputs, pretrained_model_outputs, data_manager, split):
-        self.transformer = DataTransformer(config_manager.umap_config)
+    def __init__(self, config_manager, evaluation_results, tokenization_outputs, model_outputs, pretrained_model_outputs, data_manager, split):
+        self.transformer = UMAPTransformer(config_manager.umap_config)
         self.aligner = LabelAligner(
-            results.entity_outputs['y_pred'].copy(), tokenization_outputs.get_split(split)
+            evaluation_results.entity_outputs['y_pred'].copy(), tokenization_outputs.get_split(split)
         )
         self.config_manager = config_manager
         self.tokenization_outputs = tokenization_outputs
@@ -1138,20 +1738,19 @@ class AnalysisWorkflowManager:
 
     def extract_analysis_data(self):
         try:
-            analysis_data_extractor = DataExtractor(
+            analysis_flat_data = DataExtractor(
                 tokenization_outputs=self.tokenization_outputs.get_split(self.split), 
                 model_outputs=self.model_outputs.get_split(self.split), 
                 aligner=self.aligner, transformer=self.transformer
             )
-            analysis_df = analysis_data_extractor.to_df()
-            flat_data = analysis_data_extractor.extract_features()
-            pretrained_coordinates_extractor = DataExtractor(
+            analysis_df = analysis_flat_data.to_df()
+            pretrained_flat_data = DataExtractor(
                 tokenization_outputs=self.tokenization_outputs.get_split(self.split), 
                 model_outputs=self.pretrained_model_outputs.get_split(self.split),
                 transformer=self.transformer
             )
-            pretrained_coordinates = pretrained_coordinates_extractor.to_df()
-            return analysis_df, flat_data, pretrained_coordinates
+            pretrained_coordinates = pretrained_flat_data.to_df({'x': 'pre_x', 'y': 'pre_y'}, ['global_id', 'pre_x', 'pre_y'])
+            return analysis_df, analysis_flat_data, pretrained_coordinates
         except Exception as e:
             logging.error("Error in data extraction: %s", e)
             raise
@@ -1159,9 +1758,9 @@ class AnalysisWorkflowManager:
     def perform_clustering(self, analysis_df, flat_data):
         try:
             clustering_analyser = ClusterAnalysis(flat_data, analysis_df, self.config_manager.clustering_config)
-            average_silhouette_score, kmeans_metrics, clustering_df = clustering_analyser.calculate()
-            merged_data = analysis_df.merge(clustering_df, on='global_id', how='left')
-            return merged_data, average_silhouette_score, kmeans_metrics
+            average_silhouette_score, kmeans_metrics, clustering_df, centroids_avg_similarities = clustering_analyser.calculate()
+            merged_clustering_data = analysis_df.merge(clustering_df, on='global_id', how='left')
+            return merged_clustering_data, average_silhouette_score, kmeans_metrics, centroids_avg_similarities
         except Exception as e:
             logging.error("Error in clustering analysis: %s", e)
             raise
@@ -1174,7 +1773,7 @@ class AnalysisWorkflowManager:
                 pretrained_data,
                 self.data_manager.data.get('train'),
                 self.model_outputs.test,
-                self.data_manager.corpus['labels_map'],
+                self.data_manager.labels_map,
             )
             return data_annotator.annotate_all()
         except Exception as e:
@@ -1184,12 +1783,35 @@ class AnalysisWorkflowManager:
     def run(self):
         start_time = time.time()
         analysis_df, flat_data, pretrained_coordinates = self.extract_analysis_data()
-        merged_data, average_silhouette_score, kmeans_metrics = self.perform_clustering(analysis_df, flat_data)
-        analysis_data = self.annotate_data(merged_data, pretrained_coordinates)
+        merged_clustering_data, average_silhouette_score, kmeans_metrics, centroids_avg_similarities = self.perform_clustering(analysis_df, flat_data)
+        analysis_data = self.annotate_data(merged_clustering_data, pretrained_coordinates)
         end_time = time.time()
         execution_time = end_time - start_time
         logging.info("Analysis workflow execution time: %s seconds", execution_time)
-        return analysis_data, average_silhouette_score, kmeans_metrics
+        return analysis_data, average_silhouette_score, kmeans_metrics, centroids_avg_similarities
+    
+    def generate_train_df(self):
+        try:
+            # Extract data using the DataExtractor
+            train_extractor = DataExtractor(
+                model_outputs=self.model_outputs.get_split('train'),
+                transformer=self.transformer
+            )
+            tr_df = train_extractor.to_df()
+
+            # Copy the inverse labels map from the data manager and modify it
+            inv_labels_map = self.data_manager.inv_labels_map.copy()
+            inv_labels_map[-100] = 'IGNORED'
+
+            # Map the labels in the DataFrame
+            tr_df['true_labels'] = tr_df['labels'].map(inv_labels_map)
+
+            # Return the modified DataFrame
+            return tr_df
+        except Exception as e:
+            logging.error("Error in generating training data frame: %s", e)
+            raise
+
 
 
 
