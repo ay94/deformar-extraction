@@ -161,7 +161,7 @@ class AnalysisExtractionPipeline:
             self.output_pipeline.pretrained_model, self.output_pipeline.model.bert
         )
 
-    def run(self) -> Dict[str, object]:
+    def run(self,include_train_df=False) -> Dict[str, object]:
         """
         Run the analysis extraction pipeline.
         
@@ -170,7 +170,8 @@ class AnalysisExtractionPipeline:
         """
         try:
             self.initialize()
-            analysis_data, average_silhouette_score, kmeans_metrics =  self.analysis_manager.run()
+            # analysis_data, average_silhouette_score, kmeans_metrics =  self.analysis_manager.run()
+            analysis_data, average_silhouette_score, kmeans_metrics, centroids_avg_similarity_matrix = self.analysis_manager.run()
             attention_similarity_matrix = self.training_impact.compute_attention_similarities()
             attention_weights_similarity = self.training_impact.compare_weights()
             entity_confusion_data = self.entity_confusion.generate_entity_confusion_data()
@@ -184,10 +185,13 @@ class AnalysisExtractionPipeline:
                   "token_results": self.evaluation_results.token_results,
                   "average_silhouette_score": average_silhouette_score,
                   "kmeans_metrics": kmeans_metrics,
+                  "centroids_avg_similarity_matrix": centroids_avg_similarity_matrix,
                   "attention_similarity_matrix": attention_similarity_matrix,
                   "attention_weights_similarity": attention_weights_similarity,
                   "entity_confusion_data": entity_confusion_data,
             }
+            if include_train_df:
+                self.outputs["train_df"] = self.analysis_manager.generate_train_df()
         except Exception as e:
             logging.error("Error running AnalysisExtractionPipeline: %s", e)
             raise
@@ -221,6 +225,10 @@ class AnalysisExtractionPipeline:
     @property
     def kmeans_metrics(self):
         return self.outputs.get("kmeans_metrics")
+    
+    @property
+    def centroids_avg_similarity_matrix(self):
+        return self.outputs.get("centroids_avg_similarity_matrix")
       
     @property
     def attention_similarity_matrix(self):
@@ -233,3 +241,7 @@ class AnalysisExtractionPipeline:
     @property
     def entity_confusion_data(self):
         return self.outputs.get("entity_confusion_data")
+    
+    @property
+    def train_df(self):
+        return self.outputs.get("train_df", None)
