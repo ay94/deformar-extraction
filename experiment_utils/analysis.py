@@ -679,7 +679,6 @@ class DataExtractor:
             logging.info("Aligning labels...")
             self.align_labels()
         if self.transformer:
-            logging.info("Applying UMAP...")  
             self.apply_umap()
 
         return self
