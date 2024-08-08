@@ -16,7 +16,7 @@ from typing import Optional
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_samples, homogeneity_completeness_v_measure
 import warnings
-
+from scipy.spatial.distance import cdist
 import random
 import torch
 from transformers import AutoModel
