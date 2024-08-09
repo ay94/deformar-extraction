@@ -150,6 +150,19 @@ class FileHandler:
         except Exception as e:
             logging.error("Error reading Json from file: %s: %s", file_path, e)
         return None
+    
+    def save_yaml(self, data, file_name: str):
+        """Save data to a YAML file."""
+        file_path = self._create_filename(file_name)
+        try:
+            with open(file_path, "w", encoding="utf-8") as file:
+                yaml.safe_dump(data, file, default_flow_style=False, sort_keys=False)
+            return True
+        except IOError as e:
+            logging.error("Failed to write to file: %s - %s", file_path, e)
+        except yaml.YAMLError as e:
+            logging.error("Error while converting data to YAML format: %s - %s", file_path, e)
+        return False
 
     def load_yaml(self, file_name: str):
         """Load data from a YAML file."""
