@@ -171,7 +171,7 @@ class AnalysisExtractionPipeline:
         try:
             self.initialize()
             # analysis_data, average_silhouette_score, kmeans_metrics =  self.analysis_manager.run()
-            analysis_data, average_silhouette_score, kmeans_metrics, centroids_avg_similarity_matrix = self.analysis_manager.run()
+            analysis_data, average_silhouette_score, kmeans_results, centroids_avg_similarity_matrix = self.analysis_manager.run()
             attention_similarity_matrix = self.training_impact.compute_attention_similarities()
             attention_weights_similarity = self.training_impact.compare_weights()
             entity_confusion_data = self.entity_confusion.generate_entity_confusion_data()
@@ -184,7 +184,7 @@ class AnalysisExtractionPipeline:
                   "token_report": self.evaluation_results.token_report,
                   "token_results": self.evaluation_results.token_results,
                   "average_silhouette_score": average_silhouette_score,
-                  "kmeans_metrics": kmeans_metrics,
+                  "kmeans_results": kmeans_results,
                   "centroids_avg_similarity_matrix": centroids_avg_similarity_matrix,
                   "attention_similarity_matrix": attention_similarity_matrix,
                   "attention_weights_similarity": attention_weights_similarity,
@@ -224,7 +224,7 @@ class AnalysisExtractionPipeline:
     
     @property
     def kmeans_metrics(self):
-        return self.outputs.get("kmeans_metrics")
+        return self.outputs.get("kmeans_results")
     
     @property
     def centroids_avg_similarity_matrix(self):
