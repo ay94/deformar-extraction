@@ -253,7 +253,7 @@ class EvaluationConfig:
 
 
 
-class ConfigWorkflowManager:
+class ExtractionConfigManager:
     def __init__(self, config_path: Path, file_name: str):
         config_fh = FileHandler(config_path)
         self.config = config_fh.load_yaml(file_name)
@@ -269,10 +269,6 @@ class ConfigWorkflowManager:
     @property
     def corpora_path(self) -> str:
         return self.config.get('corpora_path', None)
-    
-    @property
-    def training_config(self) -> TrainingConfig:
-        return TrainingConfig.from_dict(self.config.get('training', {}).get('args', {}))
     
     @property
     def training_config(self) -> TrainingConfig:
@@ -299,4 +295,48 @@ class ConfigWorkflowManager:
         return ClusteringConfig.from_dict(self.config.get('extraction', {}).get('clustering', {}))
 
 
+
+class ResultsConfigManager:
+    def __init__(self, config_path: Path, file_name: str):
+        config_fh = FileHandler(config_path)
+        self._config = config_fh.load_yaml(file_name)
     
+    @property
+    def output_root(self) -> Path:
+        return Path(self._config.get('output_root', '/default/path/to/save/results'))
+    
+    @property
+    def analysis_data(self) -> Dict[str, Any]:
+        return self._config.get('extraction_data', {}).get('analysis_data', {})
+    
+    @property
+    def train_data(self) -> Dict[str, Any]:
+        return self._config.get('extraction_data', {}).get('train_data', {})
+    
+    @property
+    def entity_report(self) -> Dict[str, Any]:
+        return self._config.get('extraction_data', {}).get('entity_report', {})
+    
+    @property
+    def token_report(self) -> Dict[str, Any]:
+        return self._config.get('extraction_data', {}).get('token_report', {})
+    
+    @property
+    def kmeans_results(self) -> Dict[str, Any]:
+        return self._config.get('extraction_data', {}).get('kMeans_results', {})
+    
+    @property
+    def entity_confusion_data(self) -> Dict[str, Any]:
+        return self._config.get('extraction_data', {}).get('entity_confusion_data', {})
+    
+    @property
+    def attention_weights_similarity(self) -> Dict[str, Any]:
+        return self._config.get('extraction_data', {}).get('attention_weights_similarity', {})
+    
+    @property
+    def centroids_avg_similarity_matrix(self) -> Dict[str, Any]:
+        return self._config.get('extraction_data', {}).get('centroids_avg_similarity_matrix', {})
+    
+    @property
+    def attention_similarity_matrix(self) -> Dict[str, Any]:
+        return self._config.get('extraction_data', {}).get('attention_similarity_matrix', {})
