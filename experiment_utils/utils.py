@@ -3,10 +3,9 @@ import logging
 import pickle as pkl
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from datasets import load_dataset
-
 
 import torch
+from datasets import load_dataset
 from sklearn.model_selection import train_test_split
 from tqdm.notebook import tqdm
 
@@ -224,17 +223,7 @@ class GenerateData:
                         along with metadata about labels.
         """
         logging.info("Generating ANERCorp_CamelLab")
-        ner_map = {
-            "O": 0,
-            "B-PERS": 1,
-            "I-PERS": 2,
-            "B-ORG": 3,
-            "I-ORG": 4,
-            "B-LOC": 5,
-            "I-LOC": 6,
-            "B-MISC": 7,
-            "I-MISC": 8,
-        }
+        
         ner_inv_map = {v: k for k, v in ner_map.items()}
 
         # Reading the training and test splits
@@ -370,6 +359,7 @@ class GenerateData:
 
 import logging
 import sys
+
 
 def setup_logging(level=logging.INFO):
     logger = logging.getLogger()

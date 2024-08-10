@@ -1,6 +1,6 @@
 import ast
 import copy
-import math
+
 import os
 import warnings
 from collections import Counter, defaultdict
@@ -22,129 +22,314 @@ from umap import UMAP
 from experiment_utils.finetune_utils import TCModel
 
 
-class WordPieceDataset:
-    def __init__(self, texts, tags, config, tokenizer, preprocessor=None):
-        self.texts = texts
-        self.tags = tags
-        self.config = config
-        self.PREPROCESSOR = preprocessor
-        self.TOKENIZER = tokenizer
+# class WordPieceDataset:
+#     def __init__(self, texts, tags, config, tokenizer, preprocessor=None):
+#         self.texts = texts
+#         self.tags = tags
+#         self.config = config
+#         self.PREPROCESSOR = preprocessor
+#         self.TOKENIZER = tokenizer
 
-    def __len__(self):
-        return len(self.texts)
+#     def __len__(self):
+#         return len(self.texts)
 
-    def __getitem__(self, item):
-        text_list = self.texts[item]
-        tags = self.tags[item]
-        self.first_tokens = []
-        self.sentence_ind = []
-        self.wordpieces = []
-        self.words = []
-        self.word_ids = []
-        self.labels = []
-        self.first_tokens_df = []
-        self.sentence_ind_df = []
-        self.wordpieces_df = []
-        self.words_df = []
-        self.word_ids_df = []
-        self.labels_df = []
-        self.tokens = []
-        self.sentence_len = 0
-        self.wordpieces_len = 0
-        self.removed_words = []
-        for word_id, (word, label) in enumerate(zip(text_list, tags)):
-            if self.PREPROCESSOR is not None:
-                clean_word = self.PREPROCESSOR.preprocess(word)
-                word_tokens = self.TOKENIZER.tokenize(clean_word)
-            else:
-                word_tokens = self.TOKENIZER.tokenize(word)
-            if len(word_tokens) > 0:
-                self.first_tokens.append(word_tokens[0])
-                self.sentence_ind.append(item)
-                self.wordpieces.append(word_tokens)
-                self.words.append(word)
-                self.word_ids.append(word_id)
-                self.labels.append(label)
-                self.first_tokens_df.extend(
-                    [
-                        word_tokens[i] if i == 0 else "IGNORED"
-                        for i, w in enumerate(word_tokens)
-                    ]
-                )
-                self.sentence_ind_df.extend([item for i in range(len(word_tokens))])
-                self.tokens.extend(word_tokens)
-                self.wordpieces_df.extend(
-                    [word_tokens for i in range(len(word_tokens))]
-                )
-                self.words_df.extend([word for i in range(len(word_tokens))])
-                self.word_ids_df.extend([word_id for i in range(len(word_tokens))])
-                self.labels_df.extend(
-                    [label if i == 0 else "IGNORED" for i, w in enumerate(word_tokens)]
-                )
-            else:
-                self.removed_words.append((item, word))
-        # Account for [CLS] and [SEP] with "- 2" and with "- 3" for RoBERTa.
-        special_tokens_count = self.TOKENIZER.num_special_tokens_to_add()
-        if len(self.tokens) > self.config.MAX_SEQ_LEN - special_tokens_count:
-            self.tokens = self.tokens[
-                : (self.config.MAX_SEQ_LEN - special_tokens_count)
-            ]
-            self.first_tokens_df = self.first_tokens_df[
-                : (self.config.MAX_SEQ_LEN - special_tokens_count)
-            ]
-            self.sentence_ind_df = self.sentence_ind_df[
-                : (self.config.MAX_SEQ_LEN - special_tokens_count)
-            ]
-            self.wordpieces_df = self.wordpieces_df[
-                : (self.config.MAX_SEQ_LEN - special_tokens_count)
-            ]
-            self.words_df = self.words_df[
-                : (self.config.MAX_SEQ_LEN - special_tokens_count)
-            ]
-            self.word_ids_df = self.word_ids_df[
-                : (self.config.MAX_SEQ_LEN - special_tokens_count)
-            ]
-            self.labels_df = self.labels_df[
-                : (self.config.MAX_SEQ_LEN - special_tokens_count)
-            ]
+#     def __getitem__(self, item):
+#         text_list = self.texts[item]
+#         tags = self.tags[item]
+#         self.first_tokens = []
+#         self.sentence_ind = []
+#         self.wordpieces = []
+#         self.words = []
+#         self.word_ids = []
+#         self.labels = []
+#         self.first_tokens_df = []
+#         self.sentence_ind_df = []
+#         self.wordpieces_df = []
+#         self.words_df = []
+#         self.word_ids_df = []
+#         self.labels_df = []
+#         self.tokens = []
+#         self.sentence_len = 0
+#         self.wordpieces_len = 0
+#         self.removed_words = []
+#         for word_id, (word, label) in enumerate(zip(text_list, tags)):
+#             if self.PREPROCESSOR is not None:
+#                 clean_word = self.PREPROCESSOR.preprocess(word)
+#                 word_tokens = self.TOKENIZER.tokenize(clean_word)
+#             else:
+#                 word_tokens = self.TOKENIZER.tokenize(word)
+#             if len(word_tokens) > 0:
+#                 self.first_tokens.append(word_tokens[0])
+#                 self.sentence_ind.append(item)
+#                 self.wordpieces.append(word_tokens)
+#                 self.words.append(word)
+#                 self.word_ids.append(word_id)
+#                 self.labels.append(label)
+#                 self.first_tokens_df.extend(
+#                     [
+#                         word_tokens[i] if i == 0 else "IGNORED"
+#                         for i, w in enumerate(word_tokens)
+#                     ]
+#                 )
+#                 self.sentence_ind_df.extend([item for i in range(len(word_tokens))])
+#                 self.tokens.extend(word_tokens)
+#                 self.wordpieces_df.extend(
+#                     [word_tokens for i in range(len(word_tokens))]
+#                 )
+#                 self.words_df.extend([word for i in range(len(word_tokens))])
+#                 self.word_ids_df.extend([word_id for i in range(len(word_tokens))])
+#                 self.labels_df.extend(
+#                     [label if i == 0 else "IGNORED" for i, w in enumerate(word_tokens)]
+#                 )
+#             else:
+#                 self.removed_words.append((item, word))
+#         # Account for [CLS] and [SEP] with "- 2" and with "- 3" for RoBERTa.
+#         special_tokens_count = self.TOKENIZER.num_special_tokens_to_add()
+#         if len(self.tokens) > self.config.MAX_SEQ_LEN - special_tokens_count:
+#             self.tokens = self.tokens[
+#                 : (self.config.MAX_SEQ_LEN - special_tokens_count)
+#             ]
+#             self.first_tokens_df = self.first_tokens_df[
+#                 : (self.config.MAX_SEQ_LEN - special_tokens_count)
+#             ]
+#             self.sentence_ind_df = self.sentence_ind_df[
+#                 : (self.config.MAX_SEQ_LEN - special_tokens_count)
+#             ]
+#             self.wordpieces_df = self.wordpieces_df[
+#                 : (self.config.MAX_SEQ_LEN - special_tokens_count)
+#             ]
+#             self.words_df = self.words_df[
+#                 : (self.config.MAX_SEQ_LEN - special_tokens_count)
+#             ]
+#             self.word_ids_df = self.word_ids_df[
+#                 : (self.config.MAX_SEQ_LEN - special_tokens_count)
+#             ]
+#             self.labels_df = self.labels_df[
+#                 : (self.config.MAX_SEQ_LEN - special_tokens_count)
+#             ]
 
-        # Add special tokens
-        self._add_special_tokens()
+#         # Add special tokens
+#         self._add_special_tokens()
 
-        # Length information
-        self.sentence_len = len(self.words)
-        self.wordpieces_len = len(self.tokens)
+#         # Length information
+#         self.sentence_len = len(self.words)
+#         self.wordpieces_len = len(self.tokens)
 
-    def _add_special_tokens(self):
-        """
-        Add special tokens [CLS] and [SEP] to the tokenized data.
-        """
-        self.first_tokens_df = (
-            [self.TOKENIZER.cls_token]
-            + self.first_tokens_df
-            + [self.TOKENIZER.sep_token]
-        )
-        self.sentence_ind_df = (
-            [self.TOKENIZER.cls_token]
-            + self.sentence_ind_df
-            + [self.TOKENIZER.sep_token]
-        )
-        self.wordpieces_df = (
-            [self.TOKENIZER.cls_token] + self.wordpieces_df + [self.TOKENIZER.sep_token]
-        )
-        self.words_df = (
-            [self.TOKENIZER.cls_token] + self.words_df + [self.TOKENIZER.sep_token]
-        )
-        self.word_ids_df = (
-            [self.TOKENIZER.cls_token] + self.word_ids_df + [self.TOKENIZER.sep_token]
-        )
-        self.tokens = (
-            [self.TOKENIZER.cls_token] + self.tokens + [self.TOKENIZER.sep_token]
-        )
-        self.labels_df = (
-            [self.TOKENIZER.cls_token] + self.labels_df + [self.TOKENIZER.sep_token]
-        )
+#     def _add_special_tokens(self):
+#         """
+#         Add special tokens [CLS] and [SEP] to the tokenized data.
+#         """
+#         self.first_tokens_df = (
+#             [self.TOKENIZER.cls_token]
+#             + self.first_tokens_df
+#             + [self.TOKENIZER.sep_token]
+#         )
+#         self.sentence_ind_df = (
+#             [self.TOKENIZER.cls_token]
+#             + self.sentence_ind_df
+#             + [self.TOKENIZER.sep_token]
+#         )
+#         self.wordpieces_df = (
+#             [self.TOKENIZER.cls_token] + self.wordpieces_df + [self.TOKENIZER.sep_token]
+#         )
+#         self.words_df = (
+#             [self.TOKENIZER.cls_token] + self.words_df + [self.TOKENIZER.sep_token]
+#         )
+#         self.word_ids_df = (
+#             [self.TOKENIZER.cls_token] + self.word_ids_df + [self.TOKENIZER.sep_token]
+#         )
+#         self.tokens = (
+#             [self.TOKENIZER.cls_token] + self.tokens + [self.TOKENIZER.sep_token]
+#         )
+#         self.labels_df = (
+#             [self.TOKENIZER.cls_token] + self.labels_df + [self.TOKENIZER.sep_token]
+#         )
 
+
+
+# class GenerateSplitTokenizationOutputs:
+#     def __init__(self, wordpiece_data) -> None:
+#         self.first_tokens_df = []
+#         self.sentence_ind_df = []
+#         self.wordpieces_df = []
+#         self.words_df = []
+#         self.word_ids_df = []
+#         self.labels_df = []
+#         self.sentence_len_df = []
+#         self.wordpieces_len_df = []
+
+#         self.first_tokens = []
+#         self.sentence_ind = []
+#         self.tokens = []
+#         self.wordpieces = []
+#         self.words = []
+#         self.word_ids = []
+#         self.labels = []
+#         self.sentence_len = []
+#         self.wordpieces_len = []
+#         self.get_wordpiece_data(wordpiece_data)
+
+#     def get_wordpiece_data(self, wordpiece_data):
+#         for i in tqdm(range(wordpiece_data.__len__())):
+#             wordpiece_data.__getitem__(i)
+#             self.first_tokens_df.append(wordpiece_data.first_tokens_df)
+#             self.sentence_ind_df.append(wordpiece_data.sentence_ind_df)
+#             self.tokens.append(wordpiece_data.tokens)
+#             self.wordpieces_df.append(wordpiece_data.wordpieces_df)
+#             self.words_df.append(wordpiece_data.words_df)
+#             self.word_ids_df.append(wordpiece_data.word_ids_df)
+#             self.labels_df.append(wordpiece_data.labels_df)
+#             self.sentence_len_df.append(wordpiece_data.sentence_len)
+#             self.wordpieces_len_df.append(wordpiece_data.wordpieces_len)
+
+#             self.first_tokens.append(wordpiece_data.first_tokens)
+#             self.sentence_ind.append(wordpiece_data.sentence_ind)
+#             self.wordpieces.append(wordpiece_data.wordpieces)
+#             self.words.append(wordpiece_data.words)
+#             self.word_ids.append(wordpiece_data.word_ids)
+#             self.labels.append(wordpiece_data.labels)
+
+
+# class TokenizationOutputs:
+#     def __init__(self, outputs, tokenizer_path, preprocessor_path=None) -> None:
+#         """
+#         Initialize the TokenizationOutputs class and generate word pieces and subword locations.
+
+#         Args:
+#             outputs: The outputs object containing data loaders and other relevant information.
+#             tokenizer_path: Path to the tokenizer.
+#             preprocessor_path: Path to the preprocessor (if any).
+#         """
+
+#         self.tokenizer_path = tokenizer_path
+#         self.preprocessor_path = preprocessor_path
+#         TOKENIZER, PREPROCESSOR = self.load_tokenizer()
+#         # subword sentence locations and wh at tag they had in each sentence
+#         self.generate_wordpieces(outputs, TOKENIZER, PREPROCESSOR)
+#         self.train_subwords = None
+#         self.val_subwords = None
+#         self.test_subwords = None
+#         self.train_tokenization_output = None
+#         self.val_tokenization_output = None
+#         self.test_tokenization_output = None
+
+#     def load_tokenizer(self):
+#         """
+#         Load the tokenizer and preprocessor.
+
+#         Returns:
+#             TOKENIZER: The loaded tokenizer.
+#             PREPROCESSOR: The loaded preprocessor (or None if not provided).
+#         """
+#         if self.preprocessor_path is not None:
+#             print(f"Loading Preprocessor {self.preprocessor_path}")
+#             PREPROCESSOR = ArabertPreprocessor(self.preprocessor_path)
+#         else:
+#             PREPROCESSOR = None
+#         print(f"Loading Tokenizer {self.tokenizer_path}")
+#         TOKENIZER = AutoTokenizer.from_pretrained(
+#             self.tokenizer_path, do_lower_case=False
+#         )
+#         return TOKENIZER, PREPROCESSOR
+
+#     @staticmethod
+#     def load_wordpieces(outputs, mode, tokenizer, preprocessor):
+#         """
+#         Load the word pieces for a given mode.
+
+#         Args:
+#             outputs: The outputs object containing data loaders and other relevant information.
+#             mode: The mode for which to load word pieces (train, val, test).
+#             tokenizer: The tokenizer to be used.
+#             preprocessor: The preprocessor to be used (if any).
+
+#         Returns:
+#             wordpieces: The loaded word pieces dataset.
+#         """
+#         wordpieces = WordPieceDataset(
+#             texts=[x[1] for x in outputs.data[mode]],
+#             tags=[x[2] for x in outputs.data[mode]],
+#             config=outputs.config,
+#             tokenizer=tokenizer,
+#             preprocessor=preprocessor,
+#         )
+#         return wordpieces
+
+#     @staticmethod
+#     def get_subwords(wordpieces):
+#         """
+#         Get subword locations and their tags.
+
+#         Args:
+#             wordpieces: The word pieces dataset.
+
+#         Returns:
+#             subwords: A dictionary of subwords and their corresponding tags and sentence indices.
+#         """
+#         subwords = defaultdict(list)
+#         for i in tqdm(range(wordpieces.__len__())):
+#             wordpieces.__getitem__(i)
+#             for w, t in zip(wordpieces.first_tokens, wordpieces.labels):
+#                 subwords[w].append({"tag": t, "sentence": i})
+#         return subwords
+
+#     def generate_wordpieces(self, outputs, tokenizer, preprocessor):
+#         """
+#         Generate word pieces for training, validation, and test data.
+
+#         Args:
+#             outputs: The outputs object containing data loaders and other relevant information.
+#             tokenizer: The tokenizer to be used.
+#             preprocessor: The preprocessor to be used (if any).
+#         """
+#         train_wordpieces = self.load_wordpieces(
+#             outputs, "train", tokenizer, preprocessor
+#         )
+#         val_wordpieces = self.load_wordpieces(outputs, "val", tokenizer, preprocessor)
+#         test_wordpieces = self.load_wordpieces(outputs, "test", tokenizer, preprocessor)
+
+#         self.generate_tokenization_output(
+#             train_wordpieces, val_wordpieces, test_wordpieces
+#         )
+#         self.get_subword_locations(train_wordpieces, val_wordpieces, test_wordpieces)
+
+#     def get_subword_locations(self, train_wordpieces, val_wordpieces, test_wordpieces):
+#         """
+#         Get subword locations for training, validation, and test data.
+
+#         Args:
+#             train_wordpieces: The word pieces dataset for training data.
+#             val_wordpieces: The word pieces dataset for validation data.
+#             test_wordpieces: The word pieces dataset for test data.
+#         """
+#         print("Generate Training Subwords Locations")
+#         self.train_subwords = self.get_subwords(train_wordpieces)
+#         print("Generate Validation Subwords Locations")
+#         self.val_subwords = self.get_subwords(val_wordpieces)
+#         print("Generate Test Subwords Locations")
+#         self.test_subwords = self.get_subwords(test_wordpieces)
+
+#     def generate_tokenization_output(
+#         self, train_wordpieces, val_wordpieces, test_wordpieces
+#     ):
+#         """
+#         Generate tokenization outputs for training, validation, and test data.
+
+#         Args:
+#             train_wordpieces: The word pieces dataset for training data.
+#             val_wordpieces: The word pieces dataset for validation data.
+#             test_wordpieces: The word pieces dataset for test data.
+#         """
+#         print("Generate Training Tokenization Outputs")
+#         self.train_tokenization_output = GenerateSplitTokenizationOutputs(
+#             train_wordpieces
+#         )
+#         print("Generate Validation Tokenization Outputs")
+#         self.val_tokenization_output = GenerateSplitTokenizationOutputs(val_wordpieces)
+#         print("Generate Test Tokenization Outputs")
+#         self.test_tokenization_output = GenerateSplitTokenizationOutputs(
+#             test_wordpieces
+#         )
 
 class GenerateSplitOutputs:
     def __init__(self, batches: list, labels: list) -> None:
@@ -166,58 +351,7 @@ class GenerateSplitOutputs:
 
         self.generate_split_outputs(batches)
 
-    # def compute_silhouette(self, batches: list) -> None:
-    #     """
-    #     Compute silhouette scores for each batch.
-    #
-    #     :param batches: List of data batches.
-    #     """
-    #     #  loop through each batch
-    #     for batch_num, batch in tqdm(enumerate(batches), total=len(batches)):
-    #         # for each batch give me the sentence
-    #         sentence_score = []
-    #         for labels, sentence_nums, outputs, input_ids in zip(batch['labels'], batch['sentence_num'],
-    #                                                              batch['last_hidden_state'], batch['input_ids']):
-    #             # input ids identify the tokens included in the sentence it is used to compute sentence length 0 means padding nonzero means token/subtoken
-    #             sentence_len = input_ids.nonzero().shape[0]
-    #             # get the unique values to extract sentence_number
-    #             sentence_num = torch.unique(sentence_nums[sentence_nums != -100]).tolist()[0]
-    #             # get labels that belong to the sentence get the indices of labels that are not ignored convert them to list then get the unique labels to idenity the number of unique values in tensor which gives the numebr of labels in the sentence
-    #             num_of_labels = len(torch.unique(labels[labels != -100]))
-    #             # mask indices that are ignored
-    #             label_mask = labels[:sentence_len] != -100
-    #             # apply the mask to keep the actual labels only and remove the ignored ones
-    #             considered_labels = labels[:sentence_len][label_mask]
-    #             try:
-    #                 # compute the average silhouette score for all tokens
-    #                 sentence_score.append(silhouette_score(outputs[:sentence_len][label_mask].detach().cpu().numpy(),
-    #                                                        considered_labels.detach().cpu().numpy()))
-    #                 # compute sample silhouette score for each token
-    #                 silhouette_sample = silhouette_samples(outputs[:sentence_len][label_mask].detach().cpu().numpy(),
-    #                                                        considered_labels.detach().cpu().numpy())
-    #                 self.compute_label_score(considered_labels, silhouette_sample)
-    #                 self.sentence_samples[sentence_num].extend(silhouette_sample)
-    #
-    #             except Exception as e:
-    #                 sentence_score.append(-100)
-    #                 silhouette_sample = np.array([-100] * len(considered_labels))
-    #                 self.compute_label_score(considered_labels, silhouette_sample)
-    #                 self.errors.append((batch_num, sentence_num, num_of_labels))
-    #                 self.sentence_samples[sentence_num] = [-100] * len(considered_labels)
-    #         self.scores.extend(sentence_score)
-
-    # def compute_label_score(self, considered_labels, silhouette_sample):
-    #     """
-    #     Compute the label score.
-    #
-    #     :param considered_labels: Tensor of considered labels.
-    #     :param silhouette_sample: Array of silhouette scores.
-    #     """
-    #     for lb in self.data_labels:
-    #         # identify the indices of the samples that has silhouette score
-    #         label_indices = considered_labels.detach().cpu().numpy() == self.label_map[lb]
-    #         # for each label assign the samples score that belong to that label
-    #         self.label_score[lb].extend(silhouette_sample[label_indices])
+  
 
     def generate_split_outputs(self, batches):
         """
@@ -314,48 +448,6 @@ class GenerateSplitBatches:
         self.outputs = GenerateSplitOutputs(self.batches, results.data["labels"])
 
 
-class GenerateSplitTokenizationOutputs:
-    def __init__(self, wordpiece_data) -> None:
-        self.first_tokens_df = []
-        self.sentence_ind_df = []
-        self.wordpieces_df = []
-        self.words_df = []
-        self.word_ids_df = []
-        self.labels_df = []
-        self.sentence_len_df = []
-        self.wordpieces_len_df = []
-
-        self.first_tokens = []
-        self.sentence_ind = []
-        self.tokens = []
-        self.wordpieces = []
-        self.words = []
-        self.word_ids = []
-        self.labels = []
-        self.sentence_len = []
-        self.wordpieces_len = []
-        self.get_wordpiece_data(wordpiece_data)
-
-    def get_wordpiece_data(self, wordpiece_data):
-        for i in tqdm(range(wordpiece_data.__len__())):
-            wordpiece_data.__getitem__(i)
-            self.first_tokens_df.append(wordpiece_data.first_tokens_df)
-            self.sentence_ind_df.append(wordpiece_data.sentence_ind_df)
-            self.tokens.append(wordpiece_data.tokens)
-            self.wordpieces_df.append(wordpiece_data.wordpieces_df)
-            self.words_df.append(wordpiece_data.words_df)
-            self.word_ids_df.append(wordpiece_data.word_ids_df)
-            self.labels_df.append(wordpiece_data.labels_df)
-            self.sentence_len_df.append(wordpiece_data.sentence_len)
-            self.wordpieces_len_df.append(wordpiece_data.wordpieces_len)
-
-            self.first_tokens.append(wordpiece_data.first_tokens)
-            self.sentence_ind.append(wordpiece_data.sentence_ind)
-            self.wordpieces.append(wordpiece_data.wordpieces)
-            self.words.append(wordpiece_data.words)
-            self.word_ids.append(wordpiece_data.word_ids)
-            self.labels.append(wordpiece_data.labels)
-
 
 class BatchOutputs:
     def __init__(self, outputs, model) -> None:
@@ -395,146 +487,6 @@ class ModelOutputs:
         self.test_outputs = batches.test_batches.outputs
 
 
-class TokenizationOutputs:
-    def __init__(self, outputs, tokenizer_path, preprocessor_path=None) -> None:
-        """
-        Initialize the TokenizationOutputs class and generate word pieces and subword locations.
-
-        Args:
-            outputs: The outputs object containing data loaders and other relevant information.
-            tokenizer_path: Path to the tokenizer.
-            preprocessor_path: Path to the preprocessor (if any).
-        """
-
-        self.tokenizer_path = tokenizer_path
-        self.preprocessor_path = preprocessor_path
-        TOKENIZER, PREPROCESSOR = self.load_tokenizer()
-        # subword sentence locations and wh at tag they had in each sentence
-        self.generate_wordpieces(outputs, TOKENIZER, PREPROCESSOR)
-        self.train_subwords = None
-        self.val_subwords = None
-        self.test_subwords = None
-        self.train_tokenization_output = None
-        self.val_tokenization_output = None
-        self.test_tokenization_output = None
-
-    def load_tokenizer(self):
-        """
-        Load the tokenizer and preprocessor.
-
-        Returns:
-            TOKENIZER: The loaded tokenizer.
-            PREPROCESSOR: The loaded preprocessor (or None if not provided).
-        """
-        if self.preprocessor_path is not None:
-            print(f"Loading Preprocessor {self.preprocessor_path}")
-            PREPROCESSOR = ArabertPreprocessor(self.preprocessor_path)
-        else:
-            PREPROCESSOR = None
-        print(f"Loading Tokenizer {self.tokenizer_path}")
-        TOKENIZER = AutoTokenizer.from_pretrained(
-            self.tokenizer_path, do_lower_case=False
-        )
-        return TOKENIZER, PREPROCESSOR
-
-    @staticmethod
-    def load_wordpieces(outputs, mode, tokenizer, preprocessor):
-        """
-        Load the word pieces for a given mode.
-
-        Args:
-            outputs: The outputs object containing data loaders and other relevant information.
-            mode: The mode for which to load word pieces (train, val, test).
-            tokenizer: The tokenizer to be used.
-            preprocessor: The preprocessor to be used (if any).
-
-        Returns:
-            wordpieces: The loaded word pieces dataset.
-        """
-        wordpieces = WordPieceDataset(
-            texts=[x[1] for x in outputs.data[mode]],
-            tags=[x[2] for x in outputs.data[mode]],
-            config=outputs.config,
-            tokenizer=tokenizer,
-            preprocessor=preprocessor,
-        )
-        return wordpieces
-
-    @staticmethod
-    def get_subwords(wordpieces):
-        """
-        Get subword locations and their tags.
-
-        Args:
-            wordpieces: The word pieces dataset.
-
-        Returns:
-            subwords: A dictionary of subwords and their corresponding tags and sentence indices.
-        """
-        subwords = defaultdict(list)
-        for i in tqdm(range(wordpieces.__len__())):
-            wordpieces.__getitem__(i)
-            for w, t in zip(wordpieces.first_tokens, wordpieces.labels):
-                subwords[w].append({"tag": t, "sentence": i})
-        return subwords
-
-    def generate_wordpieces(self, outputs, tokenizer, preprocessor):
-        """
-        Generate word pieces for training, validation, and test data.
-
-        Args:
-            outputs: The outputs object containing data loaders and other relevant information.
-            tokenizer: The tokenizer to be used.
-            preprocessor: The preprocessor to be used (if any).
-        """
-        train_wordpieces = self.load_wordpieces(
-            outputs, "train", tokenizer, preprocessor
-        )
-        val_wordpieces = self.load_wordpieces(outputs, "val", tokenizer, preprocessor)
-        test_wordpieces = self.load_wordpieces(outputs, "test", tokenizer, preprocessor)
-
-        self.generate_tokenization_output(
-            train_wordpieces, val_wordpieces, test_wordpieces
-        )
-        self.get_subword_locations(train_wordpieces, val_wordpieces, test_wordpieces)
-
-    def get_subword_locations(self, train_wordpieces, val_wordpieces, test_wordpieces):
-        """
-        Get subword locations for training, validation, and test data.
-
-        Args:
-            train_wordpieces: The word pieces dataset for training data.
-            val_wordpieces: The word pieces dataset for validation data.
-            test_wordpieces: The word pieces dataset for test data.
-        """
-        print("Generate Training Subwords Locations")
-        self.train_subwords = self.get_subwords(train_wordpieces)
-        print("Generate Validation Subwords Locations")
-        self.val_subwords = self.get_subwords(val_wordpieces)
-        print("Generate Test Subwords Locations")
-        self.test_subwords = self.get_subwords(test_wordpieces)
-
-    def generate_tokenization_output(
-        self, train_wordpieces, val_wordpieces, test_wordpieces
-    ):
-        """
-        Generate tokenization outputs for training, validation, and test data.
-
-        Args:
-            train_wordpieces: The word pieces dataset for training data.
-            val_wordpieces: The word pieces dataset for validation data.
-            test_wordpieces: The word pieces dataset for test data.
-        """
-        print("Generate Training Tokenization Outputs")
-        self.train_tokenization_output = GenerateSplitTokenizationOutputs(
-            train_wordpieces
-        )
-        print("Generate Validation Tokenization Outputs")
-        self.val_tokenization_output = GenerateSplitTokenizationOutputs(val_wordpieces)
-        print("Generate Test Tokenization Outputs")
-        self.test_tokenization_output = GenerateSplitTokenizationOutputs(
-            test_wordpieces
-        )
 
 
 class ModelResults:
@@ -590,876 +542,241 @@ class SaveModelOutputs:
         )
 
 
-# Data Utility
-class UtilityFunctions:
-    @staticmethod
-    def entropy(probabilities):
-        return -sum(p * math.log2(p) for p in probabilities.values())
 
-    @staticmethod
-    def label_probabilities(dataset):
-        label_counts = defaultdict(Counter)
-        for token, label in dataset:
-            label_counts[token][label] += 1
-        probabilities = {
-            token: {
-                label: count / sum(counts.values()) for label, count in counts.items()
-            }
-            for token, counts in label_counts.items()
-        }
-        return probabilities
-
-
-# Data Preparation
-class LabelAligner:
-    def __init__(self, batches, tokenization_outputs):
+class DatasetCharacteristics:
+    def __init__(self, dataset_outputs, batch_outputs, tokenization_outputs, subword_outputs, model_outputs, results):
         """
-        Initialize the DataPreparation class.
+        Initialize the DatasetCharacteristics class and create the analysis DataFrame.
 
         Args:
-            batches: The batches object containing batch data.
-            tokenization_outputs: The tokenization outputs object.
+            dataset_outputs: Dataset outputs object.
+            batch_outputs: Batch outputs object containing batches.
+            tokenization_outputs: Tokenization outputs object.
+            subword_outputs: Subword outputs object.
+            model_outputs: Model outputs object.
+            results: Results object containing evaluation metrics.
         """
-        self.batches = batches
+        self.dataset_outputs = dataset_outputs
+        self.batches = batch_outputs.batches
         self.tokenization = tokenization_outputs
+        self.subwords = subword_outputs
+        self.outputs = model_outputs
+
+        self.results = results
+        self.analysis_df = self.create_analysis_df()
+
+    # def extract_token_scores(self, sentence_samples, tokenization_output):
+    #     sentence_scores = []
+    #     for token_scores, labels in zip(sentence_samples.values(), self.tokenization.labels_df):
+    #         token_score = []
+    #         i = 0
+    #         for lb in labels:
+    #             if lb in ['[CLS]', 'IGNORED', '[SEP]']:
+    #                 token_score.append(-100)
+    #             else:
+    #                 if i < len(token_scores):
+    #                     token_score.append(token_scores[i])
+    #                     i += 1
+    #         sentence_scores.extend(token_score)
+    #     return sentence_scores
 
     def label_alignment(self):
-        """
-        Create a map for label alignment based on tokenization outputs.
-
-        Returns:
-            alignment_map: A dictionary mapping sentence IDs to token indices and tokens.
-        """
-        alignment_map = defaultdict(list)
+        label_map = defaultdict(list)
         for sen_id, sen in enumerate(self.tokenization.labels_df):
             for tok_id, tok in enumerate(sen):
-                if tok in ["[CLS]", "[SEP]", "IGNORED"]:
-                    alignment_map[sen_id].append((tok_id, tok))
-        return alignment_map
+                if tok in ['[CLS]', '[SEP]', 'IGNORED']:
+                    label_map[sen_id].append((tok_id, tok))
+        return label_map
 
     @staticmethod
-    def change_preds(preds, pred_map):
-        """
-        Modify predictions based on the alignment map.
-
-        Args:
-            preds: A list of predictions.
-            pred_map: A dictionary mapping sentence IDs to token indices and tokens.
-
-        Returns:
-            modified_preds: A list of modified predictions.
-        """
-        modified_preds = []
-        for sen_id, sen in enumerate(preds):
+    def change_preds(pred, pred_map):
+        modified_pred = []
+        for sen_id, sen in enumerate(pred):
             sentence = sen.copy()
             for idx, tok in pred_map[sen_id]:
                 sentence.insert(idx, tok)
-            modified_preds.append(sentence)
-        return modified_preds
+            modified_pred.append(sentence)
+        return modified_pred
 
+    def create_analysis_df(self):
+        flat_states = torch.cat([hidden_state[ids != 0] for batch in self.batches for ids, hidden_state in
+                                 zip(batch['input_ids'], batch['last_hidden_state'])])
+        flat_labels = torch.cat([labels[ids != 0] for batch in self.batches for ids, labels in
+                                 zip(batch['input_ids'], batch['labels'])])
+        flat_losses = torch.cat([losses for losses in
+                                 self.outputs.aligned_losses])
+        # flat_scores = self.extract_token_scores(self.outputs.sentence_samples,
+        #                                         self.tokenization)
+        flat_words = [tok for sen in self.tokenization.words_df for tok in sen]
+        flat_tokens = [tok for sen in self.tokenization.tokens for tok in sen]
+        flat_wordpieces = [str(tok) for sen in self.tokenization.wordpieces_df for tok in sen]
+        flat_first_tokens = [tok for sen in self.tokenization.first_tokens_df for tok in sen]
+        flat_token_ids = [f'{tok}@#{id}@#{i}' for sen, sen_id in
+                          zip(self.tokenization.first_tokens_df, self.tokenization.sentence_ind_df) for i, (tok, id) in
+                          enumerate(zip(sen, list(set(sen_id[1:-1])) + sen_id[1:-1] + list(set(sen_id[1:-1]))))]
 
-# Analysis Computations
-class AmbiguityComputer:
-    @staticmethod
-    def compute_consistency(analysis_df, subwords_locations):
-        # Creating a DataFrame from subwords_locations for easier manipulation
-        subwords_df = pd.DataFrame(
-            [
-                {"first_token": token, "tag": info["tag"], "count": 1}
-                for token, tags in subwords_locations.items()
-                for info in tags
-            ]
-        )
+        flat_trues = [tok for sen in self.tokenization.labels_df for tok in sen]
 
-        # Summing up counts by first_token and tag
-        tag_counts = subwords_df.groupby(["first_token", "tag"]).sum().reset_index()
+        pred_map = self.label_alignment()
 
-        # Merging with analysis_df
-        merged_df = analysis_df.merge(
-            tag_counts, how="left", left_on="first_tokens", right_on="first_token"
-        )
+        modified_preds = self.change_preds(self.results.seq_output['y_pred'].copy(), pred_map)
+        flat_preds = [tok for sen in modified_preds for tok in sen]
+        flat_sen_ids = [tok for sen in self.tokenization.sentence_ind_df for tok in
+                        list(set(sen[1:-1])) + sen[1:-1] + list(set(sen[1:-1]))]
+        flat_agreement = np.array(flat_trues) == np.array(flat_preds)
 
-        # Determine consistency
-        merged_df["is_consistent"] = merged_df["tag"] == merged_df["truth"]
-        consistency_counts = merged_df.pivot_table(
-            index="index", columns="is_consistent", values="count", fill_value=0
-        )
+        t_ids = [int(w) for batch_id, batch in enumerate(self.batches) for sen_id, ids in
+                 enumerate(batch['input_ids']) for w_id, w in enumerate(ids[ids != 0])]
 
-        # Adding to original DataFrame
-        analysis_df["first_tokens_consistency"] = consistency_counts[True]
-        analysis_df["first_tokens_inconsistency"] = consistency_counts[False]
+        w_ids = [w_id for batch_id, batch in enumerate(self.batches) for sen_id, ids in
+                 enumerate(batch['input_ids']) for w_id, w in enumerate(ids[ids != 0])]
 
-        return analysis_df
-
-    @staticmethod
-    def token_ambiguity(analysis_df, subwords_counter):
-        # Convert counter to DataFrame
-        subwords_df = pd.DataFrame(subwords_counter, columns=["token", "tag"])
-        probabilities = (
-            subwords_df.groupby("token")["tag"]
-            .value_counts(normalize=True)
-            .rename("probability")
-            .reset_index()
-        )
-
-        # Calculate entropy
-        probabilities["entropy_contribution"] = -probabilities["probability"] * np.log2(
-            probabilities["probability"]
-        )
-        entropy_df = (
-            probabilities.groupby("token")["entropy_contribution"].sum().reset_index()
-        )
-
-        # Merge back to analysis_df
-        analysis_df = analysis_df.merge(
-            entropy_df, how="left", left_on="first_tokens", right_on="token"
-        )
-        analysis_df["token_entropy"] = analysis_df["entropy_contribution"].fillna(-1)
-        analysis_df.drop(["token", "entropy_contribution"], axis=1, inplace=True)
-
-        return analysis_df["token_entropy"].values
-
-    @staticmethod
-    def word_ambiguity(analysis_df, wordsDict):
-        # Flatten the dictionary into a DataFrame
-        words_df = pd.DataFrame(
-            [
-                {"word": word, "tag": tag["tag"]}
-                for word, tags in wordsDict.items()
-                for tag in tags
-            ]
-        )
-        probabilities = (
-            words_df.groupby("word")["tag"]
-            .value_counts(normalize=True)
-            .rename("probability")
-            .reset_index()
-        )
-
-        # Calculate entropy
-        probabilities["entropy_contribution"] = -probabilities["probability"] * np.log2(
-            probabilities["probability"]
-        )
-        entropy_df = (
-            probabilities.groupby("word")["entropy_contribution"].sum().reset_index()
-        )
-
-        # Merge back to analysis_df
-        analysis_df = analysis_df.merge(
-            entropy_df, how="left", left_on="words", right_on="word"
-        )
-        analysis_df["word_entropy"] = analysis_df["entropy_contribution"].fillna(-1)
-        analysis_df.drop(["word", "entropy_contribution"], axis=1, inplace=True)
-
-        return analysis_df["word_entropy"].values
-
-    # def compute_consistency(analysis_df, subwords_locations):
-    #     """
-    #     Compute consistency and inconsistency scores for tokens in the analysis dataframe.
-    #
-    #     Args:
-    #         analysis_df: The dataframe containing analysis data.
-    #         subwords_locations: A dictionary of subwords and their corresponding tags and sentence indices.
-    #
-    #     Returns:
-    #         analysis_df: The updated dataframe with consistency and inconsistency scores.
-    #     """
-    #     consistent = []
-    #     inconsistent = []
-    #     for i in tqdm(range(len(analysis_df))):
-    #         consistent_count = []
-    #         inconsistent_count = []
-    #         for t, count in Counter(
-    #                 [tok['tag'] for tok in subwords_locations[analysis_df.iloc[i]['first_tokens']]]
-    #         ).items():
-    #             if t == analysis_df.iloc[i]['truth']:
-    #                 consistent_count.append(count)
-    #             else:
-    #                 inconsistent_count.append(count)
-    #         consistent.append(sum(consistent_count))
-    #         inconsistent.append(sum(inconsistent_count))
-    #     analysis_df['first_tokens_consistency'] = consistent
-    #     analysis_df['first_tokens_inconsistency'] = inconsistent
-    #     return analysis_df
-
-    # def token_ambiguity(self, analysis_df):
-    #     """
-    #     Calculate token ambiguity for the analysis dataframe.
-    #
-    #     Args:
-    #         analysis_df: The dataframe containing analysis data.
-    #
-    #     Returns:
-    #         token_entropy: A list of token entropy values.
-    #     """
-    #     subwords_counter = [(subword, tag['tag']) for subword, tag_dis in self.subwords.items() for tag in tag_dis]
-    #     probabilities = UtilityFunctions.label_probabilities(subwords_counter)
-    #     # token_entropies = {token: abs(UtilityFunctions.entropy(probs)) for token, probs in probabilities.items()}
-    #     token_entropies = {token: UtilityFunctions.entropy(probs) for token, probs in probabilities.items()}
-    #     computed_token_entropy = pd.DataFrame(token_entropies.items(), columns=['first_tokens', 'entropy'])
-    #
-    #     token_entropy = []
-    #     for tk in tqdm(analysis_df['first_tokens']):
-    #         token_data = computed_token_entropy[computed_token_entropy['first_tokens'] == tk]
-    #         if not token_data.empty:
-    #             token_entropy.append(token_data['entropy'].values[0])
-    #         else:
-    #             token_entropy.append(-1)
-    #     return token_entropy
-
-    # def word_ambiguity(self, analysis_df):
-    #     """
-    #     Calculate word ambiguity for the analysis dataframe.
-    #
-    #     Args:
-    #         analysis_df: The dataframe containing analysis data.
-    #
-    #     Returns:
-    #         word_entropy: A list of word entropy values.
-    #     """
-    #     wordsDict = defaultdict(list)
-    #     for i, sen in enumerate(self.dataset_outputs.data['train']):
-    #         for w, t in zip(sen[1], sen[2]):
-    #             wordsDict[w].append({'tag': t, 'sentence': i})
-    #
-    #     words_counter = [(word, tag['tag']) for word, tag_dis in wordsDict.items() for tag in tag_dis]
-    #     probabilities = UtilityFunctions.label_probabilities(words_counter)
-    #     # word_entropies = {token: abs(UtilityFunctions.entropy(probs)) for token, probs in probabilities.items()}
-    #     word_entropies = {token: UtilityFunctions.entropy(probs) for token, probs in probabilities.items()}
-    #     computed_word_entropy = pd.DataFrame(word_entropies.items(), columns=['words', 'entropy'])
-    #
-    #     word_entropy = []
-    #     for tk in tqdm(analysis_df['words']):
-    #         token_data = computed_word_entropy[computed_word_entropy['words'] == tk]
-    #         if not token_data.empty:
-    #             word_entropy.append(token_data['entropy'].values[0])
-    #         else:
-    #             word_entropy.append(-1)
-    #     return word_entropy
-
-
-class DataExtractor:
-    def __init__(self, preparation, outputs, results):
-        """
-        Initialize the FlatDataExtractor class.
-
-        Args:
-            preparation: The DataPreparation object.
-            outputs: The outputs object containing batch outputs.
-            results: The results object containing model results.
-        """
-        self.preparation = preparation
-        self.outputs = outputs
-        self.results = results
-
-    def extract_flat_data(self):
-        """
-        Extract and flatten the data from the preparation, outputs, and results.
-
-        Returns:
-            A tuple of flattened data elements.
-        """
-        flat_last_hidden_state = torch.cat(
-            [
-                hidden_state[ids != 0]
-                for batch in self.preparation.batches
-                for ids, hidden_state in zip(
-                    batch["input_ids"], batch["last_hidden_state"]
-                )
-            ]
-        )
-        flat_labels = torch.cat(
-            [
-                labels[ids != 0]
-                for batch in self.preparation.batches
-                for ids, labels in zip(batch["input_ids"], batch["labels"])
-            ]
-        )
-        flat_losses = torch.cat([losses for losses in self.outputs.aligned_losses])
-        flat_words = [
-            tok for sen in self.preparation.tokenization.words_df for tok in sen
-        ]
-        flat_tokens = [
-            tok for sen in self.preparation.tokenization.tokens for tok in sen
-        ]
-        flat_wordpieces = [
-            str(tok)
-            for sen in self.preparation.tokenization.wordpieces_df
-            for tok in sen
-        ]
-        flat_first_tokens = [
-            tok for sen in self.preparation.tokenization.first_tokens_df for tok in sen
-        ]
-        token_id_strings = [
-            f"{tok}@#{tok_id}@#{i}"
-            for sen, sen_id in zip(
-                self.preparation.tokenization.first_tokens_df,
-                self.preparation.tokenization.sentence_ind_df,
-            )
-            for i, (tok, tok_id) in
-            # for handling special token, get all sentence ids except the first and last then concatenate the first and last
-            enumerate(
-                zip(
-                    sen,
-                    list(set(sen_id[1:-1])) + sen_id[1:-1] + list(set(sen_id[1:-1])),
-                )
-            )
-        ]
-        flat_true_labels = [
-            tok for sen in self.preparation.tokenization.labels_df for tok in sen
-        ]
-
-        prediction_map = self.preparation.label_alignment()
-        modified_predictions = self.preparation.change_preds(
-            self.results.seq_output["y_pred"].copy(), prediction_map
-        )
-        flat_predictions = [tok for sen in modified_predictions for tok in sen]
-        flat_sentence_ids = [
-            tok
-            for sen in self.preparation.tokenization.sentence_ind_df
-            for tok in list(set(sen[1:-1])) + sen[1:-1] + list(set(sen[1:-1]))
-        ]
-        flat_agreements = np.array(flat_true_labels) == np.array(flat_predictions)
-
-        token_ids = [
-            int(w)
-            for batch in self.preparation.batches
-            for ids in batch["input_ids"]
-            for w in ids[ids != 0]
-        ]
-        word_ids = [
-            w_id
-            for batch in self.preparation.batches
-            for ids in batch["input_ids"]
-            for w_id in range(len(ids[ids != 0]))
-        ]
-
-        return (
-            flat_last_hidden_state,
-            flat_labels,
-            flat_losses,
-            flat_words,
-            flat_tokens,
-            flat_wordpieces,
-            flat_first_tokens,
-            token_id_strings,
-            flat_true_labels,
-            flat_predictions,
-            flat_sentence_ids,
-            flat_agreements,
-            token_ids,
-            word_ids,
-        )
-
-
-class Config:
-    def __init__(self):
-        self.umap_config = UMAPConfig()
-        # Add other configuration sections as needed
-
-
-class UMAPConfig:
-    def __init__(self):
-        # UMAP parameters
-        self.n_neighbors = 15
-        self.min_dist = 0.1
-        self.metric = "cosine"
-        self.random_state = 1
-        self.verbose = True
-        self.normalize_embeddings = False
-
-    def set_params(
-        self, n_neighbors=None, min_dist=None, metric=None, normalize_embeddings=None
-    ):
-        """Set parameters for UMAP if provided."""
-        if n_neighbors is not None:
-            self.n_neighbors = n_neighbors
-        if min_dist is not None:
-            self.min_dist = min_dist
-        if metric is not None:
-            self.metric = metric
-        if normalize_embeddings is not None:
-            self.normalize_embeddings = normalize_embeddings
-
-
-class DataTransformer:
-    def __init__(self, umap_config):
-        """
-        Initialize the DataTransformer class with UMAP parameters and normalization option.
-
-        Args:
-            umap_config: configuration of umap paramaters
-        """
-
-        self.umap_model = UMAP(
-            n_neighbors=umap_config.n_neighbors,
-            min_dist=umap_config.min_dist,
-            metric=umap_config.metric,
-            random_state=umap_config.random_state,
-            verbose=umap_config.verbose,
-        )
-        self.normalize_embeddings = umap_config.normalize_embeddings
-
-    def apply_umap(self, flat_states):
-        """
-        Apply UMAP dimensionality reduction to the given flat states.
-
-        Args:
-            flat_states: The high-dimensional data to reduce.
-
-        Returns:
-            The reduced data.
-        """
-        if self.normalize_embeddings:
-            flat_states = normalize(flat_states, axis=1)
-        return self.umap_model.fit_transform(flat_states).transpose()
-
-    @staticmethod
-    def transform_to_dataframe(flat_data, layer_reduced):
-        (
-            flat_last_hidden_state,
-            flat_labels,
-            flat_losses,
-            flat_words,
-            flat_tokens,
-            flat_wordpieces,
-            flat_first_tokens,
-            token_id_strings,
-            flat_true_labels,
-            flat_predictions,
-            flat_sentence_ids,
-            flat_agreements,
-            token_ids,
-            word_ids,
-        ) = flat_data
+        layer_reduced = UMAP(verbose=True, random_state=1).fit_transform(flat_states).transpose()
 
         analysis_df = pd.DataFrame(
-            {
-                "token_id": token_ids,
-                "word_id": word_ids,
-                "sentence_id": flat_sentence_ids,
-                "token_id_string": token_id_strings,
-                "label_ids": flat_labels.tolist(),
-                "words": flat_words,
-                "wordpieces": flat_wordpieces,
-                "tokens": flat_tokens,
-                "first_tokens": flat_first_tokens,
-                "truth": flat_true_labels,
-                "pred": flat_predictions,
-                "agreement": flat_agreements,
-                "losses": flat_losses.tolist(),
-                "x": layer_reduced[0],
-                "y": layer_reduced[1],
-            }
-        )
+            {'token_id': t_ids, 'word_id': w_ids, 'sen_id': flat_sen_ids, 'token_ids': flat_token_ids,
+             'label_ids': flat_labels.tolist(),
+             'words': flat_words, 'wordpieces': flat_wordpieces, 'tokens': flat_tokens,
+             'first_tokens': flat_first_tokens,
+             'truth': flat_trues, 'pred': flat_preds, 'agreement': flat_agreement,
+             'losses': flat_losses.tolist(), 'x': layer_reduced[0],
+             'y': layer_reduced[1]})
+
+        analysis_df = self.annotate_tokenization_rate(analysis_df.copy())
+        analysis_df = self.get_first_tokens(analysis_df, copy.deepcopy(self.subwords))
+        print('Compute Consistency')
+        analysis_df = self.compute_consistency(analysis_df, copy.deepcopy(self.subwords))
+        print('Compute Token Ambiguity')
+        analysis_df['token_entropy'] = self.token_ambiguity(analysis_df.copy())
+        print('Compute Word Ambiguity')
+        analysis_df['word_entropy'] = self.word_ambiguity(analysis_df.copy())
+
+        analysis_df['tr_entity'] = analysis_df['truth'].apply(
+            lambda x: x if x == '[CLS]' or x == 'IGNORED' else x.split('-')[-1])
+        analysis_df['pr_entity'] = analysis_df['pred'].apply(
+            lambda x: x if x == '[CLS]' or x == 'IGNORED' else x.split('-')[-1])
+
+        analysis_df['error_type'] = analysis_df[['truth', 'pred']].apply(self.error_type, axis=1)
 
         return analysis_df
-
-
-class DataAnnotator:
-    def __init__(self, subwords, dataset_outputs):
-        """
-        Initialize the AnalysisComputations class.
-
-        Args:
-            subwords: A dictionary containing subword information.
-            dataset_outputs: The dataset outputs object containing data for analysis.
-        """
-        self.subwords = subwords
-        self.dataset_outputs = dataset_outputs
 
     @staticmethod
     def annotate_tokenization_rate(analysis_df):
-        """
-        Annotate the tokenization rate (fertility) for each word in the dataframe.
-
-        Args:
-            analysis_df (pd.DataFrame): DataFrame containing analysis data.
-
-        Returns:
-            pd.DataFrame: Updated DataFrame with 'tokenization_rate' column.
-        """
         num_tokens = []
-        for wps in analysis_df["wordpieces"]:
+        for wps in analysis_df['wordpieces']:
             try:
-                # Evaluate the string representation of the word pieces to a list
-                word_pieces = ast.literal_eval(wps)
-                num_tokens.append(len(word_pieces))
-            except ValueError:
+                num_tokens.append(len(ast.literal_eval(wps)))
+            except:
                 num_tokens.append(1)
-        analysis_df["tokenization_rate"] = num_tokens
+        analysis_df['tokenization_rate'] = num_tokens
         return analysis_df
 
     @staticmethod
-    def annotate_first_token_frequencies(analysis_df, subword_locations):
-        """
-        Add a column 'first_tokens_freq' to the DataFrame with the frequency of each first token.
-
-        Args:
-            analysis_df (pd.DataFrame): DataFrame containing analysis data.
-            subword_locations (dict): Dictionary containing subword locations.
-
-        Returns:
-            pd.DataFrame: Updated DataFrame with 'first_tokens_freq' column.
-        """
-        if "first_tokens" in analysis_df.columns:
-            subword_freq_series = pd.Series(
-                {k: len(v) for k, v in subword_locations.items()}
-            )
-            analysis_df["first_tokens_freq"] = (
-                analysis_df["first_tokens"]
-                .map(subword_freq_series)
-                .fillna(0)
-                .astype(int)
-            )
-        else:
-            raise KeyError("The DataFrame does not contain a 'first_tokens' column.")
-        return analysis_df
+    def get_first_tokens(analysis, subword_locations):
+        fr_tk = []
+        try:
+            analysis.insert(5, 'first_tokens_freq', analysis['first_tokens'].apply(lambda x: len(subword_locations[x])))
+        except:
+            print('')
+        return analysis
 
     @staticmethod
-    def error_type(row):
-        """
-        Determine the type of error for a given row in the analysis dataframe.
+    def compute_consistency(analysis, subwords_locations):
+        consistent = []
+        inconsistent = []
+        for i in tqdm(range(len(analysis))):
+            con_count = []
+            incon_count = []
+            for t, count in Counter(
+                    [tok['tag'] for tok in subwords_locations[analysis.iloc[i]['first_tokens']]]).items():
+                if t == analysis.iloc[i]['truth']:
+                    con_count.append(count)
+                else:
+                    incon_count.append(count)
+            consistent.append(sum(con_count))
+            inconsistent.append(sum(incon_count))
+            try:
+                analysis.insert(6, 'first_tokens_consistency', consistent)
+                analysis.insert(7, 'first_tokens_inconsistency', inconsistent)
+            except:
+                continue
+        return analysis
 
-        Args:
-            row: A row from the analysis dataframe.
+    # def entropy(self, probabilities):
+    #     return -sum(p * math.log2(p) for p in probabilities.values())
 
-        Returns:
-            str: The type of error ('Correct', 'Entity', or 'Chunk').
-        """
-        true, pred = row["truth"], row["pred"]
+    # def label_probabilities(self, dataset):
+    #     # Count the frequencies of each label for each token
+    #     label_counts = {}
+    #     for token, label in dataset:
+    #         if token not in label_counts:
+    #             label_counts[token] = Counter()
+    #         label_counts[token][label] += 1
+    #
+    #     # Calculate the probabilities of each label for each token
+    #     probabilities = {}
+    #     for token, counts in label_counts.items():
+    #         total = sum(counts.values())
+    #         probabilities[token] = {label: count / total for label, count in counts.items()}
+    #     return probabilities
+
+    def token_ambiguity(self, analysis_df):
+        subwords_counter = []
+        for subword, tag_dis in tqdm(self.subwords.items()):
+            for tag in tag_dis:
+                subwords_counter.append((subword, tag['tag']))
+        probabilities = self.label_probabilities(subwords_counter)
+        # Calculate the entropy for each token
+        token_entropies = {token: abs(self.entropy(probs)) for token, probs in probabilities.items()}
+        computed_token_entropy = pd.DataFrame(token_entropies.items(), columns=['first_tokens', 'entropy'])
+
+        token_entropy = []
+        for tk in tqdm(analysis_df['first_tokens']):
+            token_data = computed_token_entropy[computed_token_entropy['first_tokens'] == tk]
+            if len(token_data) > 0:
+                token_entropy.append(token_data['entropy'].values[0])
+            else:
+                token_entropy.append(-1)
+        return token_entropy
+
+    def word_ambiguity(self, analysis_df):
+        wordsDict = defaultdict(list)
+        for i, sen in enumerate(self.dataset_outputs.data['train']):
+            for w, t in zip(sen[1], sen[2]):
+                wordsDict[w].append({'tag': t, 'sentence': i})
+
+        words_counter = []
+        for word, tag_dis in tqdm(wordsDict.items()):
+            for tag in tag_dis:
+                words_counter.append((word, tag['tag']))
+
+        probabilities = self.label_probabilities(words_counter)
+        word_entropies = {token: abs(self.entropy(probs)) for token, probs in probabilities.items()}
+        computed_word_entropy = pd.DataFrame(word_entropies.items(), columns=['words', 'entropy'])
+
+        word_entropy = []
+        for tk in tqdm(analysis_df['words']):
+            token_data = computed_word_entropy[computed_word_entropy['words'] == tk]
+            if len(token_data) > 0:
+                word_entropy.append(token_data['entropy'].values[0])
+            else:
+                word_entropy.append(-1)
+        return word_entropy
+
+    def error_type(self, row):
+        true, pred = row['truth'], row['pred']
+
+        # Check if both entity type and boundaries are correct
         if true == pred:
-            return "Correct"
+            return 'Correct'
+
+        # Check if the entity type is incorrect but the boundaries are correct
         elif true[1:] != pred[1:]:
-            return "Entity"
+            return 'Entity'
+
+        # If neither of the above conditions are met, the error must be in the boundaries
         else:
-            return "Chunk"
-
-    def annotate_additional_info(self, analysis_df):
-        print("Compute Consistency")
-        analysis_df = AmbiguityComputer.compute_consistency(
-            analysis_df, copy.deepcopy(self.subwords)
-        )
-        print("Compute Token Ambiguity")
-        analysis_df["token_entropy"] = AmbiguityComputer.token_ambiguity(
-            analysis_df.copy(), copy.deepcopy(self.subwords)
-        )
-        print("Compute Word Ambiguity")
-        analysis_df["word_entropy"] = AmbiguityComputer.word_ambiguity(
-            analysis_df.copy(), copy.deepcopy(self.subwords)
-        )
-
-        analysis_df["tr_entity"] = analysis_df["truth"].apply(
-            lambda x: x if x in ["[CLS]", "IGNORED"] else x.split("-")[-1]
-        )
-        analysis_df["pr_entity"] = analysis_df["pred"].apply(
-            lambda x: x if x in ["[CLS]", "IGNORED"] else x.split("-")[-1]
-        )
-
-        analysis_df["error_type"] = analysis_df[["truth", "pred"]].apply(
-            DataAnnotator.error_type, axis=1
-        )
-        return analysis_df
-
-
-class AnalysisBuilder:
-    def __init__(self, preparation, ambiguity_computer, outputs, results, config):
-        """
-        Initialize the DataFrameCreator class.
-
-        Args:
-            preparation: The DataPreparation object.
-            ambiguity_computer: The AmbiguityComputer object.
-            outputs: The outputs object containing batch outputs.
-            results: The results object containing model results.
-            config: General configuration file for different configurations
-        """
-        self.preparation = preparation
-        self.ambiguity_computer = ambiguity_computer
-        self.outputs = outputs
-        self.results = results
-        self.config = config
-
-    def construct_analysis_df(self):
-        """
-        Create the analysis DataFrame by extracting, transforming, and annotating data.
-
-        Returns:
-            pd.DataFrame: The final annotated DataFrame.
-        """
-        # Extract flat data
-        extractor = DataExtractor(self.preparation, self.outputs, self.results)
-        flat_data = extractor.extract_flat_data()
-
-        # Apply UMAP transformation
-        transformer = DataTransformer(self.config.umap_config)
-        layer_reduced = transformer.apply_umap(flat_data[0])
-        analysis_df = transformer.transform_to_dataframe(flat_data, layer_reduced)
-
-        # Annotate the DataFrame
-        analysis_df = DataAnnotator.annotate_tokenization_rate(analysis_df)
-        analysis_df = DataAnnotator.annotate_first_token_frequencies(
-            analysis_df, copy.deepcopy(self.computations.subwords)
-        )
-        analysis_df = DataAnnotator.annotate_additional_info(analysis_df)
-
-        return analysis_df
-
-
-# Main Dataset Characteristics Class
-class AnalysisManager:
-    def __init__(
-        self,
-        dataset_outputs,
-        batch_outputs,
-        tokenization_outputs,
-        subword_outputs,
-        model_outputs,
-        results,
-        config,
-    ):
-        self.label_aligner = LabelAligner(batch_outputs.batches, tokenization_outputs)
-        self.ambiguity_computer = AmbiguityComputer(subword_outputs, dataset_outputs)
-        self.analysis_builder = AnalysisBuilder(
-            self.label_aligner, self.ambiguity_computer, model_outputs, results, config
-        )
-        self.analysis_df = self.analysis_builder.construct_analysis_df()
-
-
-# class DatasetCharacteristics:
-#     def __init__(self, dataset_outputs, batch_outputs, tokenization_outputs, subword_outputs, model_outputs, results):
-#         """
-#         Initialize the DatasetCharacteristics class and create the analysis DataFrame.
-#
-#         Args:
-#             dataset_outputs: Dataset outputs object.
-#             batch_outputs: Batch outputs object containing batches.
-#             tokenization_outputs: Tokenization outputs object.
-#             subword_outputs: Subword outputs object.
-#             model_outputs: Model outputs object.
-#             results: Results object containing evaluation metrics.
-#         """
-#         self.dataset_outputs = dataset_outputs
-#         self.batches = batch_outputs.batches
-#         self.tokenization = tokenization_outputs
-#         self.subwords = subword_outputs
-#         self.outputs = model_outputs
-#
-#         self.results = results
-#         self.analysis_df = self.create_analysis_df()
-#
-#     # def extract_token_scores(self, sentence_samples, tokenization_output):
-#     #     sentence_scores = []
-#     #     for token_scores, labels in zip(sentence_samples.values(), self.tokenization.labels_df):
-#     #         token_score = []
-#     #         i = 0
-#     #         for lb in labels:
-#     #             if lb in ['[CLS]', 'IGNORED', '[SEP]']:
-#     #                 token_score.append(-100)
-#     #             else:
-#     #                 if i < len(token_scores):
-#     #                     token_score.append(token_scores[i])
-#     #                     i += 1
-#     #         sentence_scores.extend(token_score)
-#     #     return sentence_scores
-#
-#     def label_alignment(self):
-#         label_map = defaultdict(list)
-#         for sen_id, sen in enumerate(self.tokenization.labels_df):
-#             for tok_id, tok in enumerate(sen):
-#                 if tok in ['[CLS]', '[SEP]', 'IGNORED']:
-#                     label_map[sen_id].append((tok_id, tok))
-#         return label_map
-#
-#     @staticmethod
-#     def change_preds(pred, pred_map):
-#         modified_pred = []
-#         for sen_id, sen in enumerate(pred):
-#             sentence = sen.copy()
-#             for idx, tok in pred_map[sen_id]:
-#                 sentence.insert(idx, tok)
-#             modified_pred.append(sentence)
-#         return modified_pred
-#
-#     def create_analysis_df(self):
-#         flat_states = torch.cat([hidden_state[ids != 0] for batch in self.batches for ids, hidden_state in
-#                                  zip(batch['input_ids'], batch['last_hidden_state'])])
-#         flat_labels = torch.cat([labels[ids != 0] for batch in self.batches for ids, labels in
-#                                  zip(batch['input_ids'], batch['labels'])])
-#         flat_losses = torch.cat([losses for losses in
-#                                  self.outputs.aligned_losses])
-#         # flat_scores = self.extract_token_scores(self.outputs.sentence_samples,
-#         #                                         self.tokenization)
-#         flat_words = [tok for sen in self.tokenization.words_df for tok in sen]
-#         flat_tokens = [tok for sen in self.tokenization.tokens for tok in sen]
-#         flat_wordpieces = [str(tok) for sen in self.tokenization.wordpieces_df for tok in sen]
-#         flat_first_tokens = [tok for sen in self.tokenization.first_tokens_df for tok in sen]
-#         flat_token_ids = [f'{tok}@#{id}@#{i}' for sen, sen_id in
-#                           zip(self.tokenization.first_tokens_df, self.tokenization.sentence_ind_df) for i, (tok, id) in
-#                           enumerate(zip(sen, list(set(sen_id[1:-1])) + sen_id[1:-1] + list(set(sen_id[1:-1]))))]
-#
-#         flat_trues = [tok for sen in self.tokenization.labels_df for tok in sen]
-#
-#         pred_map = self.label_alignment()
-#
-#         modified_preds = self.change_preds(self.results.seq_output['y_pred'].copy(), pred_map)
-#         flat_preds = [tok for sen in modified_preds for tok in sen]
-#         flat_sen_ids = [tok for sen in self.tokenization.sentence_ind_df for tok in
-#                         list(set(sen[1:-1])) + sen[1:-1] + list(set(sen[1:-1]))]
-#         flat_agreement = np.array(flat_trues) == np.array(flat_preds)
-#
-#         t_ids = [int(w) for batch_id, batch in enumerate(self.batches) for sen_id, ids in
-#                  enumerate(batch['input_ids']) for w_id, w in enumerate(ids[ids != 0])]
-#
-#         w_ids = [w_id for batch_id, batch in enumerate(self.batches) for sen_id, ids in
-#                  enumerate(batch['input_ids']) for w_id, w in enumerate(ids[ids != 0])]
-#
-#         layer_reduced = UMAP(verbose=True, random_state=1).fit_transform(flat_states).transpose()
-#
-#         analysis_df = pd.DataFrame(
-#             {'token_id': t_ids, 'word_id': w_ids, 'sen_id': flat_sen_ids, 'token_ids': flat_token_ids,
-#              'label_ids': flat_labels.tolist(),
-#              'words': flat_words, 'wordpieces': flat_wordpieces, 'tokens': flat_tokens,
-#              'first_tokens': flat_first_tokens,
-#              'truth': flat_trues, 'pred': flat_preds, 'agreement': flat_agreement,
-#              'losses': flat_losses.tolist(), 'x': layer_reduced[0],
-#              'y': layer_reduced[1]})
-#
-#         analysis_df = self.annotate_tokenization_rate(analysis_df.copy())
-#         analysis_df = self.get_first_tokens(analysis_df, copy.deepcopy(self.subwords))
-#         print('Compute Consistency')
-#         analysis_df = self.compute_consistency(analysis_df, copy.deepcopy(self.subwords))
-#         print('Compute Token Ambiguity')
-#         analysis_df['token_entropy'] = self.token_ambiguity(analysis_df.copy())
-#         print('Compute Word Ambiguity')
-#         analysis_df['word_entropy'] = self.word_ambiguity(analysis_df.copy())
-#
-#         analysis_df['tr_entity'] = analysis_df['truth'].apply(
-#             lambda x: x if x == '[CLS]' or x == 'IGNORED' else x.split('-')[-1])
-#         analysis_df['pr_entity'] = analysis_df['pred'].apply(
-#             lambda x: x if x == '[CLS]' or x == 'IGNORED' else x.split('-')[-1])
-#
-#         analysis_df['error_type'] = analysis_df[['truth', 'pred']].apply(self.error_type, axis=1)
-#
-#         return analysis_df
-#
-#     @staticmethod
-#     def annotate_tokenization_rate(analysis_df):
-#         num_tokens = []
-#         for wps in analysis_df['wordpieces']:
-#             try:
-#                 num_tokens.append(len(ast.literal_eval(wps)))
-#             except:
-#                 num_tokens.append(1)
-#         analysis_df['tokenization_rate'] = num_tokens
-#         return analysis_df
-#
-#     @staticmethod
-#     def get_first_tokens(analysis, subword_locations):
-#         fr_tk = []
-#         try:
-#             analysis.insert(5, 'first_tokens_freq', analysis['first_tokens'].apply(lambda x: len(subword_locations[x])))
-#         except:
-#             print('')
-#         return analysis
-#
-#     @staticmethod
-#     def compute_consistency(analysis, subwords_locations):
-#         consistent = []
-#         inconsistent = []
-#         for i in tqdm(range(len(analysis))):
-#             con_count = []
-#             incon_count = []
-#             for t, count in Counter(
-#                     [tok['tag'] for tok in subwords_locations[analysis.iloc[i]['first_tokens']]]).items():
-#                 if t == analysis.iloc[i]['truth']:
-#                     con_count.append(count)
-#                 else:
-#                     incon_count.append(count)
-#             consistent.append(sum(con_count))
-#             inconsistent.append(sum(incon_count))
-#             try:
-#                 analysis.insert(6, 'first_tokens_consistency', consistent)
-#                 analysis.insert(7, 'first_tokens_inconsistency', inconsistent)
-#             except:
-#                 continue
-#         return analysis
-#
-#     # def entropy(self, probabilities):
-#     #     return -sum(p * math.log2(p) for p in probabilities.values())
-#
-#     # def label_probabilities(self, dataset):
-#     #     # Count the frequencies of each label for each token
-#     #     label_counts = {}
-#     #     for token, label in dataset:
-#     #         if token not in label_counts:
-#     #             label_counts[token] = Counter()
-#     #         label_counts[token][label] += 1
-#     #
-#     #     # Calculate the probabilities of each label for each token
-#     #     probabilities = {}
-#     #     for token, counts in label_counts.items():
-#     #         total = sum(counts.values())
-#     #         probabilities[token] = {label: count / total for label, count in counts.items()}
-#     #     return probabilities
-#
-#     def token_ambiguity(self, analysis_df):
-#         subwords_counter = []
-#         for subword, tag_dis in tqdm(self.subwords.items()):
-#             for tag in tag_dis:
-#                 subwords_counter.append((subword, tag['tag']))
-#         probabilities = self.label_probabilities(subwords_counter)
-#         # Calculate the entropy for each token
-#         token_entropies = {token: abs(self.entropy(probs)) for token, probs in probabilities.items()}
-#         computed_token_entropy = pd.DataFrame(token_entropies.items(), columns=['first_tokens', 'entropy'])
-#
-#         token_entropy = []
-#         for tk in tqdm(analysis_df['first_tokens']):
-#             token_data = computed_token_entropy[computed_token_entropy['first_tokens'] == tk]
-#             if len(token_data) > 0:
-#                 token_entropy.append(token_data['entropy'].values[0])
-#             else:
-#                 token_entropy.append(-1)
-#         return token_entropy
-#
-#     def word_ambiguity(self, analysis_df):
-#         wordsDict = defaultdict(list)
-#         for i, sen in enumerate(self.dataset_outputs.data['train']):
-#             for w, t in zip(sen[1], sen[2]):
-#                 wordsDict[w].append({'tag': t, 'sentence': i})
-#
-#         words_counter = []
-#         for word, tag_dis in tqdm(wordsDict.items()):
-#             for tag in tag_dis:
-#                 words_counter.append((word, tag['tag']))
-#
-#         probabilities = self.label_probabilities(words_counter)
-#         word_entropies = {token: abs(self.entropy(probs)) for token, probs in probabilities.items()}
-#         computed_word_entropy = pd.DataFrame(word_entropies.items(), columns=['words', 'entropy'])
-#
-#         word_entropy = []
-#         for tk in tqdm(analysis_df['words']):
-#             token_data = computed_word_entropy[computed_word_entropy['words'] == tk]
-#             if len(token_data) > 0:
-#                 word_entropy.append(token_data['entropy'].values[0])
-#             else:
-#                 word_entropy.append(-1)
-#         return word_entropy
-#
-#     def error_type(self, row):
-#         true, pred = row['truth'], row['pred']
-#
-#         # Check if both entity type and boundaries are correct
-#         if true == pred:
-#             return 'Correct'
-#
-#         # Check if the entity type is incorrect but the boundaries are correct
-#         elif true[1:] != pred[1:]:
-#             return 'Entity'
-#
-#         # If neither of the above conditions are met, the error must be in the boundaries
-#         else:
-#             return 'Chunk'
+            return 'Chunk'
 
 
 class Entity:
@@ -2146,13 +1463,13 @@ class AnalysisOutputs:
         self.batch_outputs = BatchOutputs(self.outputs, self.model)
         self.model_outputs = ModelOutputs(self.batch_outputs)
         self.results = ModelResults(self.outputs)
-        if preprocessor is not None:
-            self.tokenization_outputs = TokenizationOutputs(
-                self.outputs, model_path, preprocessor
-            )
-        else:
-            self.tokenization_outputs = TokenizationOutputs(self.outputs, model_path)
-        print("Finished Tokenisation Outputs")
+        # if preprocessor is not None:
+        #     self.tokenization_outputs = TokenizationOutputs(
+        #         self.outputs, model_path, preprocessor
+        #     )
+        # else:
+        #     self.tokenization_outputs = TokenizationOutputs(self.outputs, model_path)
+        # print("Finished Tokenisation Outputs")
         self.ea = ErrorAnalysis(
             self.outputs,
             self.batch_outputs,
@@ -2233,3 +1550,4 @@ class AuxilariyOutputs:
             lines=True,
             orient="records",
         )
+

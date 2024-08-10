@@ -12,6 +12,170 @@ from datasets import load_dataset
 from sklearn.model_selection import train_test_split
 
 
+# class FileHandler:
+#     """
+#     Handles file operations including saving and loading various types of data (JSON, binary, model states)
+#     to and from a specified project directory.
+#     """
+
+#     def __init__(self, base_folder: Path) -> None:
+#         """Initialize with the path to the project folder."""
+#         self.base_folder = Path(base_folder)
+
+#     @property
+#     def file_path(self):
+#         return self._create_filename("")
+
+#     def _create_filename(self, file_name: str) -> Path:
+#         """Return the full path for a given filename within the project folder."""
+#         return self.base_folder / file_name
+
+#     def save_json(self, filename: str, data: Any) -> None:
+#         """Save data to a JSON file."""
+#         file_path = self._create_filename(filename)
+#         try:
+#             with open(file_path, "w", encoding="utf-8") as outfile:
+#                 json.dump(data, outfile)
+#         except Exception as e:
+#             logging.error("Failed to save JSON to %s: %s", file_path, e)
+
+#     def load_json(self, filename: str) -> Optional[Any]:
+#         """Load data from a JSON file."""
+#         file_path = self._create_filename(filename)
+#         try:
+#             with open(file_path, "r", encoding="utf-8") as json_file:
+#                 return json.load(json_file)
+#         except FileNotFoundError:
+#             logging.error("JSON file not found: %s", file_path)
+#         except Exception as e:
+#             logging.error("Error decoding JSON from file: %s: %s", file_path, e)
+#         return None
+
+#     def save_pickle(self, obj: Any, filename: str) -> None:
+#         """Save an object to a binary file using pickle."""
+#         file_path = self._create_filename(filename)
+#         try:
+#             with open(file_path, "wb") as output:
+#                 pickle.dump(obj, output, pickle.HIGHEST_PROTOCOL)
+#         except Exception as e:
+#             logging.error("Pickling error while saving object to %s: %s", file_path, e)
+
+#     def load_pickle(self, filename: str) -> Optional[Any]:
+#         """Load a pickled object from a binary file."""
+#         file_path = self._create_filename(filename)
+#         try:
+#             with open(file_path, "rb") as inp:
+#                 return pickle.load(inp)
+#         except FileNotFoundError:
+#             logging.error("Object file not found: %s", file_path)
+#         except Exception as e:
+#             logging.error("Error unpickling object from file: %s: %s", file_path, e)
+#         return None
+
+#     def save_model_state(self, model: Any, filename: str) -> None:
+#         """Save the state dictionary of a PyTorch model."""
+#         file_path = self._create_filename(filename)
+#         try:
+#             torch.save(model.state_dict(), file_path)
+#         except Exception as e:
+#             logging.error("Failed to save model state to %s: %s", file_path, e)
+
+#     def load_model_state(self, model: Any, filename: str) -> Optional[Any]:
+#         """Load a model's state dictionary into a PyTorch model."""
+#         file_path = self._create_filename(filename)
+#         try:
+#             model.load_state_dict(torch.load(file_path))
+#             return model
+#         except FileNotFoundError:
+#             logging.error("Model state file not found: %s", file_path)
+#         except Exception as e:
+#             logging.error("Failed to load model state from %s: %s", file_path, e)
+#         return None
+
+#     def save_model(self, model: Any, filename: str) -> None:
+#         """Save a complete PyTorch model."""
+#         file_path = self._create_filename(filename)
+#         try:
+#             torch.save(model, file_path)
+#         except Exception as e:
+#             logging.error("Failed to save model to %s: %s", file_path, e)
+
+#     def load_model(self, filename: str) -> Optional[Any]:
+#         """Load a complete PyTorch model."""
+#         file_path = self._create_filename(filename)
+#         try:
+#             model = torch.load(file_path)
+#             model.eval()
+#             return model
+#         except FileNotFoundError:
+#             logging.error("Model file not found: %s", file_path)
+#         except Exception as e:
+#             logging.error("Failed to load model from %s: %s", file_path, e)
+#         return None
+
+#     def to_csv(self, filename: str, data: pd.DataFrame, index: bool = False) -> None:
+#         """Save DataFrame to a CSV file."""
+#         file_path = self._create_filename(filename)
+#         try:
+#             data.to_csv(file_path, index=index)
+#         except Exception as e:
+#             logging.error("Failed to save CSV to %s: %s", file_path, e)
+
+#     def read_csv(self, filename: str) -> Optional[pd.DataFrame]:
+#         """Load a CSV file into a DataFrame."""
+#         file_path = self._create_filename(filename)
+#         try:
+#             return pd.read_csv(file_path)
+#         except FileNotFoundError:
+#             logging.error("CSV file not found: %s", file_path)
+#         except Exception as e:
+#             logging.error("Error reading CSV from file: %s: %s", file_path, e)
+#         return None
+
+#     def to_json(self, filename: str, data: pd.DataFrame) -> None:
+#         """Save DataFrame to a Json file."""
+#         file_path = self._create_filename(filename)
+#         try:
+#             data.to_json(file_path, orient="records", lines=True)
+#         except Exception as e:
+#             logging.error("Failed to save Json to %s: %s", file_path, e)
+
+#     def read_json(self, filename: str) -> Optional[pd.DataFrame]:
+#         """Load a Json file into a DataFrame."""
+#         file_path = self._create_filename(filename)
+#         try:
+#             return pd.read_csv(file_path)
+#         except FileNotFoundError:
+#             logging.error("Json file not found: %s", file_path)
+#         except Exception as e:
+#             logging.error("Error reading Json from file: %s: %s", file_path, e)
+#         return None
+    
+#     def save_yaml(self, data, file_name: str):
+#         """Save data to a YAML file."""
+#         file_path = self._create_filename(file_name)
+#         try:
+#             with open(file_path, "w", encoding="utf-8") as file:
+#                 yaml.safe_dump(data, file, default_flow_style=False, sort_keys=False)
+#             return True
+#         except IOError as e:
+#             logging.error("Failed to write to file: %s - %s", file_path, e)
+#         except yaml.YAMLError as e:
+#             logging.error("Error while converting data to YAML format: %s - %s", file_path, e)
+#         return False
+
+#     def load_yaml(self, file_name: str):
+#         """Load data from a YAML file."""
+#         file_path = self._create_filename(file_name)
+#         try:
+#             with open(file_path, "r", encoding="utf-8") as file:
+#                 return yaml.safe_load(file)
+#         except FileNotFoundError:
+#             logging.error("YAML file not found: %s", file_path)
+#         except yaml.YAMLError as e:
+#             logging.error("Error parsing YAML file: %s - %s", file_path, e)
+#         return None
+
 class FileHandler:
     """
     Handles file operations including saving and loading various types of data (JSON, binary, model states)

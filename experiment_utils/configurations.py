@@ -253,43 +253,74 @@ class EvaluationConfig:
 
 
 
+@dataclass
+class ExperimentConfig:
+    experiment_dir: Path
+    corpora_dir: Path
+    variant_dir: Path
+    extraction_dir: Path
+    results_dir: Path
+    dataset_name: str
+    model_name: str
+    model_path: str
+    @staticmethod
+    def from_dict(base_folder, experiment_name, variant) -> 'ExperimentConfig':
+        """ Initialize from a dictionary """
+        experiment_dir = base_folder / experiment_name / variant / 'configs'
+        config_fh = FileHandler(experiment_dir)
+        config_dict = config_fh.load_yaml('experiment_config.yaml')
+        return ExperimentConfig(
+                experiment_dir=Path(config_dict['experiment_dir']),
+                corpora_dir=Path(config_dict['corpora_dir']),
+                variant_dir=Path(config_dict['variant_dir']),
+                extraction_dir=Path(config_dict['extraction_dir']),
+                results_dir=Path(config_dict['results_dir']),
+                dataset_name=config_dict['dataset_name'],
+                model_name=config_dict['model_name'],
+                model_path=config_dict['model_path']
+            )
+
+
+from experiment_utils.configurations import TrainingConfig, ModelConfig, EvaluationConfig, TokenizationConfig, UMAPConfig, ClusteringConfig
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Dict, Any
+import yaml
+
+@dataclass
 class ExtractionConfigManager:
-    def __init__(self, config_path: Path, file_name: str):
-        config_fh = FileHandler(config_path)
-        self.config = config_fh.load_yaml(file_name)
-    
+    def __init__(self, config_path: Path):
+        config_fh = FileHandler(config_path.parent)
+        self.config = config_fh.load_yaml(config_path.name)
+
     @property
     def dataset_name(self) -> str:
         return self.config.get('dataset_name', None)
-    
+
     @property
     def model_path(self) -> str:
         return self.config.get('model_path', None)
-    
-    @property
-    def corpora_path(self) -> str:
-        return self.config.get('corpora_path', None)
-    
+
     @property
     def training_config(self) -> TrainingConfig:
-        return TrainingConfig.from_dict(self.config.get('training', {}).get('args', {}))
-    
+        return TrainingConfig.from_dict(self.config.get('fine_tuning', {}).get('args', {}))
+
     @property
     def model_config(self) -> ModelConfig:
-        return ModelConfig.from_dict(self.config.get('training', {}).get('model', {}))
-    
+        return ModelConfig.from_dict(self.config.get('fine_tuning', {}).get('model', {}))
+
     @property
     def evaluation_config(self) -> EvaluationConfig:
-        return EvaluationConfig.from_dict(self.config.get('training', {}).get('evaluation', {}))
-    
+        return EvaluationConfig.from_dict(self.config.get('fine_tuning', {}).get('evaluation', {}))
+
     @property
     def tokenization_config(self) -> TokenizationConfig:
         return TokenizationConfig.from_dict(self.config.get('extraction', {}).get('tokenization', {}))
-    
+
     @property
     def umap_config(self) -> UMAPConfig:
         return UMAPConfig.from_dict(self.config.get('extraction', {}).get('umap', {}))
-    
+
     @property
     def clustering_config(self) -> ClusteringConfig:
         return ClusteringConfig.from_dict(self.config.get('extraction', {}).get('clustering', {}))
@@ -297,46 +328,46 @@ class ExtractionConfigManager:
 
 
 class ResultsConfigManager:
-    def __init__(self, config_path: Path, file_name: str):
-        config_fh = FileHandler(config_path)
-        self._config = config_fh.load_yaml(file_name)
-    
+    def __init__(self, config_path: Path):
+        config_fh = FileHandler(config_path.parent)
+        self.config = config_fh.load_yaml(config_path.name)
+
     @property
-    def output_root(self) -> Path:
-        return Path(self._config.get('output_root', '/default/path/to/save/results'))
-    
+    def results_dir(self) -> Path:
+        return Path(self.config.get('results_dir', None))
+
     @property
     def analysis_data(self) -> Dict[str, Any]:
-        return self._config.get('extraction_data', {}).get('analysis_data', {})
-    
+        return self.config.get('analysis_data', {})
+
     @property
     def train_data(self) -> Dict[str, Any]:
-        return self._config.get('extraction_data', {}).get('train_data', {})
-    
+        return self.config.get('train_data', {})
+
     @property
     def entity_report(self) -> Dict[str, Any]:
-        return self._config.get('extraction_data', {}).get('entity_report', {})
-    
+        return self.config.get('entity_report', {})
+
     @property
     def token_report(self) -> Dict[str, Any]:
-        return self._config.get('extraction_data', {}).get('token_report', {})
-    
+        return self.config.get('token_report', {})
+
     @property
     def kmeans_results(self) -> Dict[str, Any]:
-        return self._config.get('extraction_data', {}).get('kMeans_results', {})
-    
+        return self.config.get('kMeans_results', {})
+
     @property
     def entity_confusion_data(self) -> Dict[str, Any]:
-        return self._config.get('extraction_data', {}).get('entity_confusion_data', {})
-    
+        return self.config.get('entity_confusion_data', {})
+
     @property
     def attention_weights_similarity(self) -> Dict[str, Any]:
-        return self._config.get('extraction_data', {}).get('attention_weights_similarity', {})
-    
+        return self.config.get('attention_weights_similarity', {})
+
     @property
     def centroids_avg_similarity_matrix(self) -> Dict[str, Any]:
-        return self._config.get('extraction_data', {}).get('centroids_avg_similarity_matrix', {})
-    
+        return self.config.get('centroids_avg_similarity_matrix', {})
+
     @property
     def attention_similarity_matrix(self) -> Dict[str, Any]:
-        return self._config.get('extraction_data', {}).get('attention_similarity_matrix', {})
+        return self.config.get('attention_similarity_matrix', {})

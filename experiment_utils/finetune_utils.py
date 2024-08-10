@@ -275,9 +275,15 @@ class FineTuneUtils:
             loss.backward()
             # item returns the scalar only not the whole tensor
             final_loss += loss.item()
+            '''
+            Gradient accumulation is a technique used when the effective batch size is larger than the memory capacity of the GPU. Instead of updating the model parameters
+            after every mini-batch, gradients are accumulated over multiple mini-batches and then used to update the parameters.
+            '''
             if (i + 1) % config.ACCUMULATION_STEPS == 0:
-                # Gradient accumulation is a technique used when the effective batch size is larger than the memory capacity of the GPU. Instead of updating the model parameters after every mini-batch, gradients are accumulated over multiple mini-batches and then used to update the parameters.
-                # Gradient clipping is a technique used to prevent the exploding gradient problem, where gradients become excessively large during training, leading to unstable updates and convergence issues.
+                '''
+                Gradient clipping is a technique used to prevent the exploding gradient problem, where gradients become excessively large during training, leading to unstable
+                updates and convergence issues.
+                '''
                 torch.nn.utils.clip_grad_norm_(model.parameters(), config.MAX_GRAD_NORM)
                 optimizer.step()
                 scheduler.step()
