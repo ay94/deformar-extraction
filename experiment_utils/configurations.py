@@ -276,7 +276,7 @@ class ExperimentConfig:
             config_dict = config_fh.load_yaml('experiment_config.yaml')
    
             experiment_dir = experiment_configs_dir / config_dict['experiment_dir']
-            corpora_dir = experiment_configs_dir / config_dict['corpora_dir']
+            corpora_dir = base_folder / config_dict['corpora_dir']
             variant_dir = experiment_configs_dir / config_dict['variant_dir']
             extraction_dir = experiment_configs_dir / config_dict['extraction_dir']
             results_dir = experiment_configs_dir / config_dict['results_dir']
