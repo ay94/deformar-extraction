@@ -270,15 +270,24 @@ class ExperimentConfig:
     @staticmethod
     def from_dict(base_folder, experiment_name, variant) -> 'ExperimentConfig':
         """ Initialize from a dictionary """
-        experiment_dir = base_folder / experiment_name / variant / 'configs'
-        config_fh = FileHandler(experiment_dir)
-        config_dict = config_fh.load_yaml('experiment_config.yaml')
+        experiment_configs_dir = base_folder / experiment_name / variant / 'configs'
+        if experiment_configs_dir.exists():
+            config_fh = FileHandler(experiment_configs_dir)
+            config_dict = config_fh.load_yaml('experiment_config.yaml')
+   
+            experiment_dir = experiment_configs_dir / config_dict['experiment_dir']
+            corpora_dir = experiment_configs_dir / config_dict['corpora_dir']
+            variant_dir = experiment_configs_dir / config_dict['variant_dir']
+            extraction_dir = experiment_configs_dir / config_dict['extraction_dir']
+            results_dir = experiment_configs_dir / config_dict['results_dir']
+        else:
+            raise ValueError("Experiment Config doesn't exist please review the path")
         return ExperimentConfig(
-                experiment_dir=Path(config_dict['experiment_dir']),
-                corpora_dir=Path(config_dict['corpora_dir']),
-                variant_dir=Path(config_dict['variant_dir']),
-                extraction_dir=Path(config_dict['extraction_dir']),
-                results_dir=Path(config_dict['results_dir']),
+                experiment_dir=experiment_dir,
+                corpora_dir=corpora_dir,
+                variant_dir=variant_dir,
+                extraction_dir=extraction_dir,
+                results_dir=results_dir,
                 dataset_name=config_dict['dataset_name'],
                 model_name=config_dict['model_name'],
                 model_path=config_dict['model_path']

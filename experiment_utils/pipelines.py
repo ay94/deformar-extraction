@@ -413,14 +413,14 @@ class ExperimentInitializer:
         
         
         experiment_config={
-            "experiment_dir": str(experiment_dir),
-            "corpora_dir": str(corpora_dir),
-            "variant_dir": str(variant_dir),
+            "experiment_dir": str(experiment_dir.name),
+            "corpora_dir": str(corpora_dir.name),
+            "variant_dir": str(variant_dir.name),
             "dataset_name": self.experiment_config['dataset_name'],
             "model_name": self.experiment_config['model_name'],
-            "extraction_dir": str(extraction_dir),
-            "results_dir": str(results_dir),
-            "fine_tuning_dir": str(fine_tuning_dir),
+            "extraction_dir": str(extraction_dir.name),
+            "results_dir": str(results_dir.name),
+            "fine_tuning_dir": str(fine_tuning_dir.name),
             "model_path": self.experiment_config['model_path']
         }
         self.results_config['results_dir'] = str(variant_dir / self.results_config.pop('results_dir'))
