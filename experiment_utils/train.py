@@ -447,7 +447,7 @@ class FineTuneUtils:
     
 
 class Trainer:
-    def __init__(self, data_manager, model_manager, args, use_cross_validation=False) -> None:
+    def __init__(self, data_manager, model_manager, args, evaluation_config, use_cross_validation=False) -> None:
         self.model = None
         self.eval_metrics = None
         self.device = None
@@ -457,6 +457,7 @@ class Trainer:
         self.test_dataloader = None
         self.validation_dataloader = None
         self.args = args
+        self.evaluation_config = evaluation_config
         self.data_manager = data_manager
         self.use_cross_validation = use_cross_validation
 
@@ -520,7 +521,7 @@ class Trainer:
             self.model,
             self.device,
             self.data_manager.inv_labels_map,
-            self.args
+            self.evaluation_config
         )
         return eval_metrics, eval_loss
 

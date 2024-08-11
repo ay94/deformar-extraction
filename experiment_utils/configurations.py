@@ -313,6 +313,7 @@ class ExtractionConfigManager:
     @property
     def training_config(self) -> TrainingConfig:
         return TrainingConfig.from_dict(self.config.get('fine_tuning', {}).get('args', {}))
+    
 
     @property
     def model_config(self) -> ModelConfig:
