@@ -390,11 +390,12 @@ class AnalysisExtractionPipeline:
         return self.outputs.get("train_df", None)
 
 class ExperimentInitializer:
-    def __init__(self, base_folder, experiment_config, extraction_config, results_config):
+    def __init__(self, base_folder, experiment_config, extraction_config, results_config, fine_tuning_config):
         self.base_folder = base_folder
         self.experiment_config = experiment_config
         self.extraction_config = extraction_config
         self.results_config = results_config
+        self.fine_tuning_config = fine_tuning_config
 
 
     def setup_experiment(self):
@@ -408,6 +409,7 @@ class ExperimentInitializer:
         configs_dir.mkdir(parents=True, exist_ok=True)
         extraction_dir =  configs_dir / self.experiment_config['extraction_config']
         results_dir = configs_dir / self.experiment_config['results_config']
+        fine_tuning_dir = configs_dir / self.experiment_config['fine_tuning_config']
         
         
         experiment_config={
@@ -418,12 +420,14 @@ class ExperimentInitializer:
             "model_name": self.experiment_config['model_name'],
             "extraction_dir": str(extraction_dir),
             "results_dir": str(results_dir),
+            "fine_tuning_dir": str(fine_tuning_dir),
             "model_path": self.experiment_config['model_path']
         }
         self.results_config['results_dir'] = str(variant_dir / self.results_config.pop('results_dir'))
         self.write_config(experiment_config, configs_dir, 'experiment_config.yaml')
-        self.write_config(self.extraction_config, configs_dir, 'extraction_config.yaml')
-        self.write_config(self.results_config, configs_dir, 'results_config.yaml')
+        self.write_config(self.extraction_config, configs_dir, self.experiment_config['extraction_config'])
+        self.write_config(self.results_config, configs_dir, self.experiment_config['results_config'])
+        self.write_config(self.fine_tuning_config, configs_dir, self.experiment_config['fine_tuning_config'])
             
 
     def write_config(self, config, path, file_name):

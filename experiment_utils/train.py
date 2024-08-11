@@ -342,7 +342,7 @@ class DatasetManager:
             config=self.config,
         )
 
-    def get_dataloader(self, split: str, batch_size: int, shuffle: bool = False) -> Union[DataLoader, None]:
+    def get_dataloader(self, split: str, batch_size: int, num_workers: int, shuffle: bool = False) -> Union[DataLoader, None]:
         """
         Get a DataLoader for the specified split.
 
@@ -359,7 +359,7 @@ class DatasetManager:
                 dataset=self.get_dataset(split),
                 batch_size=batch_size,
                 shuffle=shuffle,
-                num_workers=2
+                num_workers=num_workers
             )
         except KeyError:
             logging.error("The %s Split Doesn't Exist", split)
@@ -466,9 +466,9 @@ class Trainer:
         self.model = model_manager.configure_model()
         self.device = model_manager.get_device()
         
-        self.train_dataloader = self.data_manager.get_dataloader('train', self.args.train_batch_size)
-        self.test_dataloader = self.data_manager.get_dataloader('test', self.args.test_batch_size)
-        self.validation_dataloader = self.data_manager.get_dataloader('validation', self.args.test_batch_size)
+        self.train_dataloader = self.data_manager.get_dataloader('train', self.args.train_batch_size, self.args.num_workers)
+        self.test_dataloader = self.data_manager.get_dataloader('test', self.args.test_batch_size, self.args.num_workers)
+        self.validation_dataloader = self.data_manager.get_dataloader('validation', self.args.test_batch_size, self.args.num_workers)
         # Initialize optimizer and scheduler
         self.setup_optimizer_scheduler(self.model, self.args)
 

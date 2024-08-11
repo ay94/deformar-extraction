@@ -8,6 +8,7 @@ class TrainingConfig:
     train_batch_size: int
     test_batch_size: int
     shuffle: bool
+    num_workers: int
     epochs: int
     splits: int
     learning_rate: float
@@ -46,6 +47,9 @@ class TrainingConfig:
             raise ValueError("Accumulation steps must be at least 1")
         if self.logging_step < 1:
             logging.error("Invalid logging steps: %s", self.logging_step)
+            raise ValueError("Accumulation steps must be at least 1")
+        if self.num_workers < 1 and self.num_workers > 4:
+            logging.error("Invalid num_workers: %s", self.num_workers)
             raise ValueError("Accumulation steps must be at least 1")
         logging.info("Training Config validated successfully")
 
@@ -281,11 +285,7 @@ class ExperimentConfig:
             )
 
 
-from experiment_utils.configurations import TrainingConfig, ModelConfig, EvaluationConfig, TokenizationConfig, UMAPConfig, ClusteringConfig
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Dict, Any
-import yaml
+
 
 @dataclass
 class ExtractionConfigManager:
