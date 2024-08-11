@@ -449,6 +449,7 @@ class FineTuneUtils:
 class Trainer:
     def __init__(self, data_manager, model_manager, args, use_cross_validation=False) -> None:
         self.model = None
+        self.eval_metrics = None
         self.device = None
         self.optimizer = None
         self.scheduler = None
@@ -501,13 +502,7 @@ class Trainer:
             num_warmup_steps=int(args.warmup_ratio * num_train_steps),
             num_training_steps=num_train_steps,
         )
-    def training_loop(self):
-        if self.use_cross_validation:
-            logging.info("Cross Validation")
-            self.cross_validation_loop()
-        else:
-            logging.info("Standard")
-            self.standard_training_loop()
+                
     def train(self):
         training_loss = FineTuneUtils.train_fn(
             self.train_dataloader,
@@ -518,6 +513,7 @@ class Trainer:
             self.args,
         )
         return training_loss
+    
     def evaluate(self, dataloader):
         eval_metrics, eval_loss = FineTuneUtils.eval_fn(
             dataloader,
@@ -552,6 +548,15 @@ class Trainer:
 
             logging.info("\nEntity-Level Evaluation Metrics:")
             print(eval_metrics.entity_results.to_markdown(index=False, tablefmt="fancy_grid"))
+        self.eval_metrics = eval_metrics
+    
+    def training_loop(self):
+        if self.use_cross_validation:
+            logging.info("Cross Validation")
+            self.cross_validation_loop()
+        else:
+            logging.info("Standard")
+            self.standard_training_loop()
         
 
     def cross_validation_loop(self):

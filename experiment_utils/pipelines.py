@@ -389,7 +389,7 @@ class AnalysisExtractionPipeline:
     def train_df(self):
         return self.outputs.get("train_df", None)
 
-class ExperimentManager:
+class ExperimentInitializer:
     def __init__(self, base_folder, experiment_config, extraction_config, results_config):
         self.base_folder = base_folder
         self.experiment_config = experiment_config
