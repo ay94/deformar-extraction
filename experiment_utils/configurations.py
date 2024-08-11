@@ -264,6 +264,7 @@ class ExperimentConfig:
     variant_dir: Path
     extraction_dir: Path
     results_dir: Path
+    fine_tuning_dir: Path
     dataset_name: str
     model_name: str
     model_path: str
@@ -280,6 +281,7 @@ class ExperimentConfig:
             variant_dir = experiment_configs_dir / config_dict['variant_dir']
             extraction_dir = experiment_configs_dir / config_dict['extraction_dir']
             results_dir = experiment_configs_dir / config_dict['results_dir']
+            fine_tuning_dir = experiment_configs_dir / config_dict['fine_tuning_dir']
         else:
             raise ValueError("Experiment Config doesn't exist please review the path")
         return ExperimentConfig(
@@ -288,6 +290,7 @@ class ExperimentConfig:
                 variant_dir=variant_dir,
                 extraction_dir=extraction_dir,
                 results_dir=results_dir,
+                fine_tuning_dir=fine_tuning_dir,
                 dataset_name=config_dict['dataset_name'],
                 model_name=config_dict['model_name'],
                 model_path=config_dict['model_path']

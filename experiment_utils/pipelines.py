@@ -423,7 +423,7 @@ class ExperimentInitializer:
             "fine_tuning_dir": str(fine_tuning_dir.name),
             "model_path": self.experiment_config['model_path']
         }
-        self.results_config['results_dir'] = str(variant_dir / self.results_config.pop('results_dir'))
+        self.results_config['results_dir'] = str(variant_dir.name / self.results_config.pop('results_dir'))
         self.write_config(experiment_config, configs_dir, 'experiment_config.yaml')
         self.write_config(self.extraction_config, configs_dir, self.experiment_config['extraction_config'])
         self.write_config(self.results_config, configs_dir, self.experiment_config['results_config'])
@@ -435,7 +435,7 @@ class ExperimentInitializer:
         config_fh.save_yaml(config, file_name)
         
         
-class DataSaver:
+class ResultsSaver:
     def __init__(self, results_manager):
         self.results_manager = results_manager
         self.results_fh = FileHandler(self.results_manager.results_dir)
@@ -452,7 +452,8 @@ class DataSaver:
             raise ValueError(f"Unsupported data type or format: {fmt}")
 
     def save_all(self, results):
-        self.results_manager.results_dir.mkdir(parents=True, exist_ok=True)
+        results_dir = self.results_manager.results_dir.parents[1] / self.results_manager.results_dir
+        results_dir.mkdir(parents=True, exist_ok=True)
         for key, data in results.items():
             if key in self.results_manager.config:
                 self.save(data, self.results_manager.config[key])
