@@ -49,8 +49,8 @@ class ModelOutputProcessor:
         with torch.no_grad():
             for data in tqdm(self.data_loader):
                 data = {k: v.to(self.device) for k, v in data.items()}
-                data['words_ids'] = data['input_ids'] # TODO: these are just place holders remember to remove 
-                data['sentence_num'] = data['input_ids'] # TODO: these are just place holders remember to remove
+                # data['words_ids'] = data['input_ids'] # TODO: these are just place holders remember to remove 
+                # data['sentence_num'] = data['input_ids'] # TODO: these are just place holders remember to remove
                 outputs = self.model(**data)
                 batch = BatchData(
                     input_ids=data['input_ids'],
