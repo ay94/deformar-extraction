@@ -1,8 +1,11 @@
 import logging
 from dataclasses import dataclass, field
-from typing import Optional, Any, Dict, List
-from experiment_utils.general_utils import FileHandler
 from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from experiment_utils.general_utils import FileHandler
+
+
 @dataclass
 class TrainingConfig:
     train_batch_size: int
@@ -23,9 +26,11 @@ class TrainingConfig:
     @staticmethod
     def from_dict(config_dict: Dict[str, Any]):
         try:
-            config_dict['learning_rate'] = float(config_dict['learning_rate'])
+            config_dict["learning_rate"] = float(config_dict["learning_rate"])
         except ValueError as e:
-            logging.error("Invalid format for learning_rate, needs to be convertible to float")
+            logging.error(
+                "Invalid format for learning_rate, needs to be convertible to float"
+            )
             raise ValueError("Invalid format for learning_rate") from e
         return TrainingConfig(**config_dict)
 
@@ -40,7 +45,11 @@ class TrainingConfig:
             logging.error("Invalid number of epochs: %s", self.epochs)
             raise ValueError("Epochs must be greater than 0")
         if self.train_batch_size <= 0 or self.test_batch_size <= 0:
-            logging.error("Invalid batch sizes: Train %s, Valid %s", self.train_batch_size, self.test_batch_size)
+            logging.error(
+                "Invalid batch sizes: Train %s, Valid %s",
+                self.train_batch_size,
+                self.test_batch_size,
+            )
             raise ValueError("Batch sizes must be greater than 0")
         if self.accumulation_steps < 1:
             logging.error("Invalid accumulation steps: %s", self.accumulation_steps)
@@ -54,12 +63,12 @@ class TrainingConfig:
         logging.info("Training Config validated successfully")
 
 
-
 @dataclass
 class TokenizationStrategy:
     type: str
     index: int
     schema: Optional[str] = None
+
 
 @dataclass
 class TokenizationConfig:
@@ -74,12 +83,12 @@ class TokenizationConfig:
     @staticmethod
     def from_dict(config_dict: Dict[str, Any]):
         # This assumes the 'strategy' sub-dictionary is properly formatted
-        strategy_config = TokenizationStrategy(**config_dict['strategy'])
+        strategy_config = TokenizationStrategy(**config_dict["strategy"])
         return TokenizationConfig(
-            tokenizer_path=config_dict['tokenizer_path'],
-            preprocessor_path=config_dict['preprocessor_path'],
-            max_seq_len=config_dict['max_seq_len'],
-            strategy=strategy_config
+            tokenizer_path=config_dict["tokenizer_path"],
+            preprocessor_path=config_dict["preprocessor_path"],
+            max_seq_len=config_dict["max_seq_len"],
+            strategy=strategy_config,
         )
 
     def validate_config(self):
@@ -91,12 +100,11 @@ class TokenizationConfig:
             raise ValueError("preprocessor_path cannot be empty")
         if not isinstance(self.strategy, TokenizationStrategy):
             raise ValueError("strategy must be an instance of TokenizationStrategy")
-        if self.strategy.type not in ['core', 'all']:  # Example check
+        if self.strategy.type not in ["core", "all"]:  # Example check
             raise ValueError("Invalid strategy type specified")
         if not isinstance(self.strategy.index, int) or self.strategy.index < 0:
             raise ValueError("Strategy index must be a non-negative integer")
         logging.info("Tokenization Config validated successfully")
-
 
 
 @dataclass
@@ -128,7 +136,6 @@ class ModelConfig:
         logging.info("Model Config validated successfully")
 
 
-
 @dataclass
 class UMAPConfig:
     n_neighbors: int = 15
@@ -138,12 +145,14 @@ class UMAPConfig:
     verbose: bool = True
     normalize_embeddings: bool = False
 
-    def set_params(self,
-                   n_neighbors: Optional[int] = None,
-                   min_dist: Optional[float] = None,
-                   metric: Optional[str] = None,
-                   random_state: Optional[int] = None,
-                   normalize_embeddings: Optional[bool] = None):
+    def set_params(
+        self,
+        n_neighbors: Optional[int] = None,
+        min_dist: Optional[float] = None,
+        metric: Optional[str] = None,
+        random_state: Optional[int] = None,
+        normalize_embeddings: Optional[bool] = None,
+    ):
         """Optionally update UMAP parameters."""
         if n_neighbors is not None:
             self.n_neighbors = n_neighbors
@@ -176,24 +185,27 @@ class UMAPConfig:
         logging.info("UMAP Config validated successfully")
 
 
-
 @dataclass
 class ClusteringConfig:
-    init_method: str = 'k-means++'
+    init_method: str = "k-means++"
     n_init: int = 10
     random_state: int = 1
     n_clusters: List = field(default_factory=lambda: [3, 4, 9])
-    n_clusters_map: List[Dict] = field(default_factory=lambda: {3: 'boundary', 4: 'entity', 9: 'token'})
-    silhouette_metric: str = 'cosine'
-    norm: str = 'l2'
+    n_clusters_map: List[Dict] = field(
+        default_factory=lambda: {3: "boundary", 4: "entity", 9: "token"}
+    )
+    silhouette_metric: str = "cosine"
+    norm: str = "l2"
 
-    def set_params(self,
-                   init_method: Optional[str] = None,
-                   n_init: Optional[int] = None,
-                   random_state: Optional[int] = None,
-                   n_clusters: Optional[List[Dict]] = None,
-                   silhouette_metric: Optional[str] = None,
-                   norm: Optional[str] = None):
+    def set_params(
+        self,
+        init_method: Optional[str] = None,
+        n_init: Optional[int] = None,
+        random_state: Optional[int] = None,
+        n_clusters: Optional[List[Dict]] = None,
+        silhouette_metric: Optional[str] = None,
+        norm: Optional[str] = None,
+    ):
         """Optionally update clustering parameters."""
         if init_method is not None:
             self.init_method = init_method
@@ -211,12 +223,12 @@ class ClusteringConfig:
     @staticmethod
     def from_dict(config_dict):
         """Create ClusteringConfig from a dictionary."""
-        
+
         return ClusteringConfig(**config_dict)
 
     def __post_init__(self):
         """Validate clustering configuration to ensure valid settings."""
-        valid_init_methods = ['k-means++', 'random']
+        valid_init_methods = ["k-means++", "random"]
         if self.init_method not in valid_init_methods:
             raise ValueError(f"init_method must be one of {valid_init_methods}.")
         if not isinstance(self.n_init, int) or self.n_init <= 0:
@@ -227,10 +239,12 @@ class ClusteringConfig:
             raise ValueError("n_clusters must be a list int.")
         if not isinstance(self.n_clusters_map, Dict):
             raise ValueError("n_clusters must be a list of dictionary.")
-        valid_silhouette_metrics = ['euclidean', 'cosine']
+        valid_silhouette_metrics = ["euclidean", "cosine"]
         if self.silhouette_metric not in valid_silhouette_metrics:
-            raise ValueError(f"silhouette_metric must be one of {valid_silhouette_metrics}.")
-        valid_norms = ['l1', 'l2']
+            raise ValueError(
+                f"silhouette_metric must be one of {valid_silhouette_metrics}."
+            )
+        valid_norms = ["l1", "l2"]
         if self.norm not in valid_norms:
             raise ValueError(f"norm must be one of {valid_norms}.")
         logging.info("Clustering Config validated successfully")
@@ -259,7 +273,6 @@ class EvaluationConfig:
         logging.info("Evaluation Config validated successfully")
 
 
-
 @dataclass
 class ExperimentConfig:
     experiment_dir: Path
@@ -271,35 +284,34 @@ class ExperimentConfig:
     dataset_name: str
     model_name: str
     model_path: str
+
     @staticmethod
-    def from_dict(base_folder, experiment_name, variant) -> 'ExperimentConfig':
-        """ Initialize from a dictionary """
-        experiment_configs_dir = base_folder / experiment_name / variant / 'configs'
+    def from_dict(base_folder, experiment_name, variant) -> "ExperimentConfig":
+        """Initialize from a dictionary"""
+        experiment_configs_dir = base_folder / experiment_name / variant / "configs"
         if experiment_configs_dir.exists():
             config_fh = FileHandler(experiment_configs_dir)
-            config_dict = config_fh.load_yaml('experiment_config.yaml')
-   
-            experiment_dir = experiment_configs_dir / config_dict['experiment_dir']
-            corpora_dir = base_folder / config_dict['corpora_dir']
-            variant_dir = experiment_configs_dir / config_dict['variant_dir']
-            extraction_dir = experiment_configs_dir / config_dict['extraction_dir']
-            results_dir = experiment_configs_dir / config_dict['results_dir']
-            fine_tuning_dir = experiment_configs_dir / config_dict['fine_tuning_dir']
+            config_dict = config_fh.load_yaml("experiment_config.yaml")
+
+            experiment_dir = experiment_configs_dir / config_dict["experiment_dir"]
+            corpora_dir = base_folder / config_dict["corpora_dir"]
+            variant_dir = experiment_configs_dir / config_dict["variant_dir"]
+            extraction_dir = experiment_configs_dir / config_dict["extraction_dir"]
+            results_dir = experiment_configs_dir / config_dict["results_dir"]
+            fine_tuning_dir = experiment_configs_dir / config_dict["fine_tuning_dir"]
         else:
             raise ValueError("Experiment Config doesn't exist please review the path")
         return ExperimentConfig(
-                experiment_dir=experiment_dir,
-                corpora_dir=corpora_dir,
-                variant_dir=variant_dir,
-                extraction_dir=extraction_dir,
-                results_dir=results_dir,
-                fine_tuning_dir=fine_tuning_dir,
-                dataset_name=config_dict['dataset_name'],
-                model_name=config_dict['model_name'],
-                model_path=config_dict['model_path']
-            )
-
-
+            experiment_dir=experiment_dir,
+            corpora_dir=corpora_dir,
+            variant_dir=variant_dir,
+            extraction_dir=extraction_dir,
+            results_dir=results_dir,
+            fine_tuning_dir=fine_tuning_dir,
+            dataset_name=config_dict["dataset_name"],
+            model_name=config_dict["model_name"],
+            model_path=config_dict["model_path"],
+        )
 
 
 @dataclass
@@ -310,37 +322,45 @@ class ExtractionConfigManager:
 
     @property
     def dataset_name(self) -> str:
-        return self.config.get('dataset_name', None)
+        return self.config.get("dataset_name", None)
 
     @property
     def model_path(self) -> str:
-        return self.config.get('model_path', None)
+        return self.config.get("model_path", None)
 
     @property
     def training_config(self) -> TrainingConfig:
-        return TrainingConfig.from_dict(self.config.get('fine_tuning', {}).get('args', {}))
-    
+        return TrainingConfig.from_dict(
+            self.config.get("fine_tuning", {}).get("args", {})
+        )
 
     @property
     def model_config(self) -> ModelConfig:
-        return ModelConfig.from_dict(self.config.get('fine_tuning', {}).get('model', {}))
+        return ModelConfig.from_dict(
+            self.config.get("fine_tuning", {}).get("model", {})
+        )
 
     @property
     def evaluation_config(self) -> EvaluationConfig:
-        return EvaluationConfig.from_dict(self.config.get('fine_tuning', {}).get('evaluation', {}))
+        return EvaluationConfig.from_dict(
+            self.config.get("fine_tuning", {}).get("evaluation", {})
+        )
 
     @property
     def tokenization_config(self) -> TokenizationConfig:
-        return TokenizationConfig.from_dict(self.config.get('extraction', {}).get('tokenization', {}))
+        return TokenizationConfig.from_dict(
+            self.config.get("extraction", {}).get("tokenization", {})
+        )
 
     @property
     def umap_config(self) -> UMAPConfig:
-        return UMAPConfig.from_dict(self.config.get('extraction', {}).get('umap', {}))
+        return UMAPConfig.from_dict(self.config.get("extraction", {}).get("umap", {}))
 
     @property
     def clustering_config(self) -> ClusteringConfig:
-        return ClusteringConfig.from_dict(self.config.get('extraction', {}).get('clustering', {}))
-
+        return ClusteringConfig.from_dict(
+            self.config.get("extraction", {}).get("clustering", {})
+        )
 
 
 class ResultsConfigManager:
@@ -351,44 +371,45 @@ class ResultsConfigManager:
 
     @property
     def results_dir(self) -> Path:
-        results_dir = self.config_path.parents[1] / self.config['results_dir']
+        results_dir = self.config_path.parents[1] / self.config["results_dir"]
         return results_dir
 
     @property
     def analysis_data(self) -> Dict[str, Any]:
-        return self.config.get('analysis_data', {})
+        return self.config.get("analysis_data", {})
 
     @property
     def train_data(self) -> Dict[str, Any]:
-        return self.config.get('train_data', {})
+        return self.config.get("train_data", {})
 
     @property
     def entity_report(self) -> Dict[str, Any]:
-        return self.config.get('entity_report', {})
+        return self.config.get("entity_report", {})
 
     @property
     def token_report(self) -> Dict[str, Any]:
-        return self.config.get('token_report', {})
+        return self.config.get("token_report", {})
 
     @property
     def kmeans_results(self) -> Dict[str, Any]:
-        return self.config.get('kMeans_results', {})
+        return self.config.get("kMeans_results", {})
 
     @property
     def entity_confusion_data(self) -> Dict[str, Any]:
-        return self.config.get('entity_confusion_data', {})
+        return self.config.get("entity_confusion_data", {})
 
     @property
     def attention_weights_similarity(self) -> Dict[str, Any]:
-        return self.config.get('attention_weights_similarity', {})
+        return self.config.get("attention_weights_similarity", {})
 
     @property
     def centroids_avg_similarity_matrix(self) -> Dict[str, Any]:
-        return self.config.get('centroids_avg_similarity_matrix', {})
+        return self.config.get("centroids_avg_similarity_matrix", {})
 
     @property
     def attention_similarity_matrix(self) -> Dict[str, Any]:
-        return self.config.get('attention_similarity_matrix', {})
+        return self.config.get("attention_similarity_matrix", {})
+
 
 class FineTuningConfigManager:
     def __init__(self, config_path: Path):
@@ -398,19 +419,17 @@ class FineTuningConfigManager:
 
     @property
     def save_dir(self) -> Path:
-        save_dir = self.config_path.parents[1] / self.config['save_dir']
+        save_dir = self.config_path.parents[1] / self.config["save_dir"]
         return save_dir
 
     @property
     def metrics(self) -> Dict[str, Any]:
-        return self.config.get('metrics', {})
+        return self.config.get("metrics", {})
 
     @property
     def state_dict(self) -> Dict[str, Any]:
-        return self.config.get('model', {}).get('state_dict', {})
+        return self.config.get("model", {}).get("state_dict", {})
 
     @property
     def binary(self) -> Dict[str, Any]:
-        return self.config.get('model', {}).get('binary', {})
-
-   
+        return self.config.get("model", {}).get("binary", {})

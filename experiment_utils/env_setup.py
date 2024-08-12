@@ -2,9 +2,13 @@ import logging
 import sys
 from pathlib import Path
 
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S')
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+
+
 def init(local_drives_dir: str = None, account="ahmed.younes.sam@gmail.com") -> Path:
     """
     Initializes the environment by detecting whether it's running in Google Colab or locally.
@@ -19,11 +23,11 @@ def init(local_drives_dir: str = None, account="ahmed.younes.sam@gmail.com") -> 
         Path: Path to the directory based on the environment.
     """
 
-
     try:
         ipython = get_ipython()
         if "google.colab" in str(ipython):
             from google.colab import drive
+
             setup_logging()
 
             drive.mount("/content/drive", force_remount=True)
@@ -47,7 +51,8 @@ def init(local_drives_dir: str = None, account="ahmed.younes.sam@gmail.com") -> 
         return resolved_path
     else:
         logging.warning(
-            "Resolved path does not exist, checking alternative paths: %s", resolved_path
+            "Resolved path does not exist, checking alternative paths: %s",
+            resolved_path,
         )
         alternative_path = Path("~/Library/CloudStorage").expanduser().resolve()
         if alternative_path.exists():
@@ -58,15 +63,15 @@ def init(local_drives_dir: str = None, account="ahmed.younes.sam@gmail.com") -> 
                     and account in str(child)
                 ):
                     logging.info(
-                        "Found Google Drive directory for account %s: %s", account, child
+                        "Found Google Drive directory for account %s: %s",
+                        account,
+                        child,
                     )
                     return child / local_drives_dir
         logging.error(
             "No valid path found. Ensure that the specified paths are correct."
         )
         return None
-
-
 
 
 def setup_logging(level=logging.INFO):
@@ -77,7 +82,9 @@ def setup_logging(level=logging.INFO):
         handler.setLevel(level)  # Adjust the logging level as needed
 
         # Create formatter and add it to the handler
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
         handler.setFormatter(formatter)
 
         # Add the handler to the logger

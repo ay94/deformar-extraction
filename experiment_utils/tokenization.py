@@ -32,87 +32,6 @@ class TokenizedOutput:
         return TokenizedOutput(**data)
 
 
-# class TokenStrategy(ABC):
-#     IGNORED_TOKEN_LABEL = "IGNORED"
-
-#     @abstractmethod
-#     def handle_tokens(
-#         self, tokens: List[str], label: str, tokens_data: Dict[str, List[str]]
-#     ):
-#         """Process tokens and update tokens_data directly."""
-#         pass
-
-
-# class CoreTokenStrategy(TokenStrategy):
-#     def __init__(self, index=0):
-#         self.index = index
-
-#     def handle_tokens(
-#         self, tokens: List[str], label: str, tokens_data: Dict[str, List[str]]
-#     ):
-#         if tokens:
-#             selected_index = min(self.index, len(tokens) - 1)
-#             selected_token = tokens[selected_index]
-#             tokens_data["core_tokens"].append(selected_token)
-#             tokens_data["labels"].append(label)
-#             tokens_data["core_tokens_df"].extend(
-#                 [
-#                     token if token == selected_token else self.IGNORED_TOKEN_LABEL
-#                     for token in tokens
-#                 ]
-#             )
-#             tokens_data["labels_df"].extend(
-#                 [
-#                     label if i == self.index else self.IGNORED_TOKEN_LABEL
-#                     for i in range(len(tokens))
-#                 ]
-#             )
-#         else:
-#             logging.warning("No tokens provided for tokenization.")
-
-
-# class AllTokensStrategy(TokenStrategy):
-#     def __init__(self, schema="BIO"):
-#         self.schema = schema
-
-#     def handle_tokens(
-#         self, tokens: List[str], label: str, tokens_data: Dict[str, List[str]]
-#     ):
-#         if tokens:
-#             labels = self.get_labels(label, len(tokens), self.schema)
-#             tokens_data["core_tokens"].extend(tokens)
-#             tokens_data["labels"].extend(labels)
-#             tokens_data["core_tokens_df"].extend(tokens)
-#             tokens_data["labels_df"].extend(labels)
-#         else:
-#             logging.warning("No tokens provided for tokenization.")
-
-#     def get_labels(
-#         self, initial_label: str, token_count: int, schema: str
-#     ) -> List[str]:
-#         match schema:
-#             case "BIO":
-#                 if initial_label.startswith("B-"):
-#                     return [initial_label] + [
-#                         f"I-{initial_label[2:]}" for _ in range(1, token_count)
-#                     ]
-#                 return [initial_label] * token_count
-#             case _:
-#                 # Default case if the schema is not recognized
-#                 return [initial_label] * token_count
-
-
-# class TokenStrategyFactory:
-#     def __init__(self):
-#         self.strategies = {"core": CoreTokenStrategy, "all": AllTokensStrategy}
-
-#     def get_strategy(self, strategy_type, **kwargs):
-
-#         strategy_cls = self.strategies.get(strategy_type)
-#         if not strategy_cls:
-#             raise ValueError(f"Unknown strategy type: {strategy_type}")
-#         return strategy_cls(**kwargs)
-
 class TokenStrategy(ABC):
     IGNORED_TOKEN_LABEL = "IGNORED"
 
@@ -122,6 +41,8 @@ class TokenStrategy(ABC):
     ):
         """Process tokens and update tokens_data directly."""
         pass
+
+
 class CoreTokenStrategy(TokenStrategy):
     def __init__(self, index=0):
         self.index = index
@@ -151,13 +72,7 @@ class CoreTokenStrategy(TokenStrategy):
                 core_tokens, labels, processed_tokens, processed_labels = [], [], [], []
                 core_tokens.append(selected_token)
                 labels.append(label)
-                processed_tokens.extend(
-                    tokens
-                    # [
-                    #     token if token == selected_token else self.IGNORED_TOKEN_LABEL
-                    #     for token in tokens
-                    # ]
-                )
+                processed_tokens.extend(tokens)
                 processed_labels.extend(
                     [
                         label if i == self.index else self.IGNORED_TOKEN_LABEL
@@ -207,6 +122,7 @@ class AllTokensStrategy(TokenStrategy):
                 # Default case if the schema is not recognized
                 return [initial_label] * token_count
 
+
 class TokenStrategyFactory:
     def __init__(self, config):
         self.strategies = {"core": CoreTokenStrategy, "all": AllTokensStrategy}
@@ -216,11 +132,11 @@ class TokenStrategyFactory:
 
         strategy_type, kwargs = self.get_params()
         strategy_cls = self.strategies.get(strategy_type)
-        
+
         if not strategy_cls:
             raise ValueError(f"Unknown strategy type: {strategy_type}")
         return strategy_cls(**kwargs)
-    
+
     def get_params(self):
         """Validate the configuration and retrieve the appropriate tokenization strategy."""
         strategy = self.config.strategy
@@ -252,6 +168,7 @@ class TokenStrategyFactory:
             params["schema"] = schema
         # Use the factory to get the appropriate strategy
         return strategy_type, params
+
 
 class TokenizedTextProcessor:
 
@@ -335,37 +252,15 @@ class TokenizedTextProcessor:
         for key in tokens_data:
             if key.endswith("df"):
                 if isinstance(tokens_data[key], list):
-                    if key!='sentence_index_df':
+                    if key != "sentence_index_df":
                         tokens_data[key] = [cls_token] + tokens_data[key] + [sep_token]
                     else:
-                        tokens_data[key] = [tokens_data["sentence_index"]] + tokens_data[key] + [tokens_data["sentence_index"]]
+                        tokens_data[key] = (
+                            [tokens_data["sentence_index"]]
+                            + tokens_data[key]
+                            + [tokens_data["sentence_index"]]
+                        )
 
-
-# class TokenizationConfigManager:
-#     """Manage loading and configuration of tokenizers and preprocessors."""
-
-#     def __init__(self, config_path):
-#         self.config_path = config_path
-#         self.config = self.load_config()
-#         self.tokenizer_path = self.config["tokenizer_path"]
-#         self.preprocessor_path = self.config["preprocessor_path"]
-
-#     def load_tokenizer(self):
-#         logging.info("Loading Tokenizer %s", self.tokenizer_path)
-#         tokenizer = AutoTokenizer.from_pretrained(
-#             self.tokenizer_path, do_lower_case=False
-#         )
-#         preprocessor = None
-#         if self.preprocessor_path:
-#             logging.info("Loading Preprocessor %s", self.preprocessor_path)
-#             preprocessor = ArabertPreprocessor(self.preprocessor_path)
-#         return tokenizer, preprocessor
-
-#     def load_config(self):
-#         with open(self.config_path, "r") as file:
-#             # Load the YAML content from the file
-#             data = yaml.safe_load(file)
-#             return data
 
 class TokenizationConfigManager:
     """Manage loading and configuration of tokenizers and preprocessors."""
@@ -409,7 +304,7 @@ class DataSplitManager:
                     self.create_split_processor(split)
                 )
             ]
-            if split=='train':
+            if split == "train":
                 subword_index = self.get_split_subwords(split, tokenized_sentences)
             else:
                 subword_index = {}
@@ -457,7 +352,9 @@ class TokenizationWorkflowManager:
         try:
             self.tokenizer, self.preprocessor = self.config_manager.load_tokenizer()
             self.max_seq_len = self.config_manager.config.max_seq_len
-            self.strategy = TokenStrategyFactory(self.config_manager.config).get_strategy()
+            self.strategy = TokenStrategyFactory(
+                self.config_manager.config
+            ).get_strategy()
             self.data_manager = DataSplitManager(
                 self.data,
                 self.tokenizer,
@@ -471,7 +368,9 @@ class TokenizationWorkflowManager:
 
     def get_split_data(self, split_name):
         split_data = self.processed_data.get(split_name, None)
-        if split_data is None or (split_name == 'train' and not split_data.get('subword_index')):
+        if split_data is None or (
+            split_name == "train" and not split_data.get("subword_index")
+        ):
             logging.warning("%s data is not available.", split_name)
             return {}  # Return an empty dictionary or a default structure
         return split_data
@@ -487,21 +386,20 @@ class TokenizationWorkflowManager:
 
     @property
     def train(self):
-        return self.get_split_data("train").get('tokenized_text')
+        return self.get_split_data("train").get("tokenized_text")
 
     @property
     def test(self):
-        return self.get_split_data("test").get('tokenized_text')
-    
+        return self.get_split_data("test").get("tokenized_text")
+
     @property
     def validation(self):
-        return self.get_split_data("validation").get('tokenized_text')
-
+        return self.get_split_data("validation").get("tokenized_text")
 
     @property
     def train_subwords(self):
-        return self.get_split_data("train").get('subword_index')
-    
+        return self.get_split_data("train").get("subword_index")
+
     def get_split(self, split):
         match split:
             case "train":
@@ -510,11 +408,3 @@ class TokenizationWorkflowManager:
                 return self.test
             case "validation":
                 return self.validation
-
-    # @property
-    # def test_subwords(self):
-    #     return self.get_split_data("test").get('subword_index')
-
-    # @property
-    # def validation_subwords(self):
-    #         return self.get_split_data("validation").get('subword_index')
