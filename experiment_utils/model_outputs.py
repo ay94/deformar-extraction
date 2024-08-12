@@ -125,7 +125,7 @@ class ModelOutputWorkflowManager:
 
     def get_split_data(self, split):
         batch_size = self.get_batch_size(split)
-        dataloader = self.data_manager.get_dataloader(split, batch_size)
+        dataloader = self.data_manager.get_dataloader(split, batch_size, self.config.num_workers)
         if dataloader:
             sentences = ModelOutputProcessor(dataloader, self.model, self.device).process_outputs()
             return sentences
@@ -258,7 +258,7 @@ class PretrainedModelOutputWorkflowManager:
 
     def get_split_data(self, split):
         batch_size = self.get_batch_size(split)
-        dataloader = self.data_manager.get_dataloader(split, batch_size)
+        dataloader = self.data_manager.get_dataloader(split, batch_size, self.config.num_workers)
         if dataloader:
             outputs = PretrainedModelOutputProcessor(dataloader, self.model, self.device).process_outputs()
             return outputs
