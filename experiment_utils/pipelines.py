@@ -317,8 +317,8 @@ class AnalysisExtractionPipeline:
                   "entity_report": self.evaluation_results.entity_report,
                   "token_report": self.evaluation_results.token_report,
                   "results": AnalysisExtractionPipeline.combine_results(
-                      self.evaluation_results.entity_results,
-                      self.evaluation_results.token_results,
+                      pd.DataFrame(self.evaluation_results.entity_results),
+                      pd.DataFrame(self.evaluation_results.token_results),
                       average_silhouette_score
                   ),
                   "kmeans_results": AnalysisExtractionPipeline.combine_kmeans_results(kmeans_results),
