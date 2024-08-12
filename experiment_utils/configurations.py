@@ -384,3 +384,28 @@ class ResultsConfigManager:
     @property
     def attention_similarity_matrix(self) -> Dict[str, Any]:
         return self.config.get('attention_similarity_matrix', {})
+
+class FineTuningConfigManager:
+    def __init__(self, config_path: Path):
+        self.config_path = config_path
+        config_fh = FileHandler(config_path.parent)
+        self.config = config_fh.load_yaml(config_path.name)
+
+    @property
+    def save_dir(self) -> Path:
+        save_dir = self.config_path.parents[1] / self.config['save_dir']
+        return save_dir
+
+    @property
+    def metrics(self) -> Dict[str, Any]:
+        return self.config.get('metrics', {})
+
+    @property
+    def state_dict(self) -> Dict[str, Any]:
+        return self.config.get('model', {}).get('state_dict', {})
+
+    @property
+    def binary(self) -> Dict[str, Any]:
+        return self.config.get('model', {}).get('binary', {})
+
+   

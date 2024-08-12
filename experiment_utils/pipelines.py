@@ -452,8 +452,47 @@ class ResultsSaver:
             raise ValueError(f"Unsupported data type or format: {fmt}")
 
     def save_all(self, results):
-        results_dir = self.results_manager.results_dir.parents[1] / self.results_manager.results_dir
+        results_dir = self.results_manager.results_dir
         results_dir.mkdir(parents=True, exist_ok=True)
+        logging.info("Saving Extraction Results in %s", results_dir)
         for key, data in results.items():
             if key in self.results_manager.config:
                 self.save(data, self.results_manager.config[key])
+
+
+class FineTuningSaver:
+    def __init__(self, fine_tuning_manager):
+        self.fine_tuning_manager = fine_tuning_manager
+        self.fine_tuning_fh = FileHandler(self.fine_tuning_manager.save_dir)
+
+    def save(self, data, config):
+        file_path = self.fine_tuning_manager.save_dir / config['filename']
+        fmt = config['format']
+        if fmt == 'json':
+            self.fine_tuning_fh.save_json(file_path.with_suffix('.json'), data)
+        elif fmt == 'pth':
+            self.fine_tuning_fh.save_model_state(data, file_path.with_suffix('.pth'))
+        elif fmt == 'bin':
+            self.fine_tuning_fh.save_model(data, file_path.with_suffix('.bin'))
+        else:
+            raise ValueError(f"Unsupported data type or format: {fmt}")
+
+    def save_model(self, model):
+        model_state_dict = self.fine_tuning_manager.state_dict
+        if model_state_dict: 
+          self.save(model, self.fine_tuning_manager.state_dict) 
+        model_bin = self.fine_tuning_manager.binary
+        if model_bin:
+            self.save(model, model_bin)
+
+    def save_metrics(self, metrics):
+        metrics_config = self.fine_tuning_manager.config.get('metrics', None)
+        if metrics_config:
+            self.save(metrics, metrics_config)
+
+    def save_all(self, model, eval_metrics):
+        
+        logging.info("Saving Fine Tuning Results in %s", self.fine_tuning_manager.save_dir)
+        self.fine_tuning_manager.save_dir.mkdir(parents=True, exist_ok=True)
+        self.save_model(model)
+        self.save_metrics(eval_metrics)
