@@ -142,6 +142,7 @@ class UMAPConfig:
                    n_neighbors: Optional[int] = None,
                    min_dist: Optional[float] = None,
                    metric: Optional[str] = None,
+                   random_state: Optional[int] = None,
                    normalize_embeddings: Optional[bool] = None):
         """Optionally update UMAP parameters."""
         if n_neighbors is not None:
@@ -150,6 +151,8 @@ class UMAPConfig:
             self.min_dist = min_dist
         if metric is not None:
             self.metric = metric
+        if random_state is not None:
+            self.random_state = random_state
         if normalize_embeddings is not None:
             self.normalize_embeddings = normalize_embeddings
 
