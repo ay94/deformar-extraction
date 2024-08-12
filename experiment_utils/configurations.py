@@ -342,12 +342,14 @@ class ExtractionConfigManager:
 
 class ResultsConfigManager:
     def __init__(self, config_path: Path):
+        self.config_path = config_path
         config_fh = FileHandler(config_path.parent)
         self.config = config_fh.load_yaml(config_path.name)
 
     @property
     def results_dir(self) -> Path:
-        return Path(self.config.get('results_dir', None))
+        results_dir = self.config_path.parents[1] / self.config['results_dir']
+        return results_dir
 
     @property
     def analysis_data(self) -> Dict[str, Any]:

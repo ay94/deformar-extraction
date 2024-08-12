@@ -423,7 +423,7 @@ class ExperimentInitializer:
             "fine_tuning_dir": str(fine_tuning_dir.name),
             "model_path": self.experiment_config['model_path']
         }
-        self.results_config['results_dir'] = str(variant_dir.name / self.results_config.pop('results_dir'))
+        # self.results_config['results_dir'] = str(variant_dir.name / self.results_config.pop('results_dir'))
         self.write_config(experiment_config, configs_dir, 'experiment_config.yaml')
         self.write_config(self.extraction_config, configs_dir, self.experiment_config['extraction_config'])
         self.write_config(self.results_config, configs_dir, self.experiment_config['results_config'])
