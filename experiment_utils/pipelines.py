@@ -480,19 +480,20 @@ class FineTuningSaver:
     def save_model(self, model):
         model_state_dict = self.fine_tuning_manager.state_dict
         if model_state_dict: 
-          self.save(model, self.fine_tuning_manager.state_dict) 
+          self.save(model, model_state_dict) 
+          
         model_bin = self.fine_tuning_manager.binary
         if model_bin:
-            self.save(model, model_bin)
+          self.save(model, model_bin)
 
     def save_metrics(self, metrics):
-        metrics_config = self.fine_tuning_manager.config.get('metrics', None)
+        metrics_config = self.fine_tuning_manager.metrics
         if metrics_config:
             self.save(metrics, metrics_config)
 
     def save_all(self, model, eval_metrics):
-        
-        logging.info("Saving Fine Tuning Results in %s", self.fine_tuning_manager.save_dir)
-        self.fine_tuning_manager.save_dir.mkdir(parents=True, exist_ok=True)
+        save_dir = self.fine_tuning_manager.save_dir
+        save_dir.mkdir(parents=True, exist_ok=True)
+        logging.info("Saving Fine Tuning Results in %s", save_dir)
         self.save_model(model)
         self.save_metrics(eval_metrics)
