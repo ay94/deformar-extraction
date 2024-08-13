@@ -68,7 +68,7 @@ def init(drive_folder: str = None, account="ahmed.younes.sam@gmail.com") -> Path
                         account,
                         child,
                     )
-                    return child / local_drives_dir
+                    return child / drive_folder
         logging.error(
             "No valid path found. Ensure that the specified paths are correct."
         )
