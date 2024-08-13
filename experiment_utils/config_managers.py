@@ -96,8 +96,8 @@ class TokenizationConfig:
             raise ValueError("max_seq_len must be a positive integer")
         if not self.tokenizer_path:
             raise ValueError("tokenizer_path cannot be empty")
-        if not self.preprocessor_path:
-            raise ValueError("preprocessor_path cannot be empty")
+        # if not self.preprocessor_path:
+        #     raise ValueError("preprocessor_path cannot be empty")
         if not isinstance(self.strategy, TokenizationStrategy):
             raise ValueError("strategy must be an instance of TokenizationStrategy")
         if self.strategy.type not in ["core", "all"]:  # Example check
