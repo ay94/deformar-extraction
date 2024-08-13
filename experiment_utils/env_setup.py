@@ -1,8 +1,8 @@
 import logging
+import subprocess
 import sys
 from pathlib import Path
-import sys
-import subprocess
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -10,7 +10,11 @@ logging.basicConfig(
 )
 
 
-def init(drive_folder: str = 'My Drive', drive_mount: str = 'drive', account="ahmed.younes.sam@gmail.com") -> Path:
+def init(
+    drive_folder: str = "My Drive",
+    drive_mount: str = "drive",
+    account="ahmed.younes.sam@gmail.com",
+) -> Path:
     """
     Initializes the environment by detecting whether it's running in Google Colab or locally.
     Automatically mounts Google Drive if in Colab and uses a default or specified local directory path if running locally.
@@ -42,9 +46,7 @@ def init(drive_folder: str = 'My Drive', drive_mount: str = 'drive', account="ah
         raise e
 
     resolved_path = (
-        Path(drive_folder).expanduser().resolve()
-        if drive_folder
-        else Path.home()
+        Path(drive_folder).expanduser().resolve() if drive_folder else Path.home()
     )
 
     if resolved_path.exists():
@@ -93,7 +95,6 @@ def setup_logging(level=logging.INFO):
 
     logger.setLevel(level)
     return logger
-
 
 
 def save_environment_info(base_path: Path):
