@@ -1,17 +1,23 @@
 import logging
+from pathlib import Path
 from typing import Dict
 
 import pandas as pd
 import plotly.graph_objects as go
 from transformers import AutoModel
 
-from experiment_utils.analysis import AnalysisWorkflowManager, Entity, TrainingImpact
-from experiment_utils.general_utils import FileHandler
+from experiment_utils.analysis import (AnalysisWorkflowManager, Entity,
+                                       TrainingImpact)
+from experiment_utils.config_managers import (ExperimentConfig,
+                                              ExtractionConfigManager,
+                                              FineTuningConfigManager,
+                                              ResultsConfigManager)
+from experiment_utils.evaluation import Metrics
 from experiment_utils.model_outputs import (
-    ModelOutputWorkflowManager,
-    PretrainedModelOutputWorkflowManager,
-)
+    ModelOutputWorkflowManager, PretrainedModelOutputWorkflowManager)
 from experiment_utils.tokenization import TokenizationWorkflowManager
+from experiment_utils.train import DatasetManager, ModelManager, Trainer
+from experiment_utils.utils import FileHandler
 
 
 class OutputGenerationPipeline:
@@ -410,3 +416,156 @@ class FineTuningSaver:
         logging.info("Saving Fine Tuning Results in %s", save_dir)
         self.save_model(model)
         self.save_metrics(eval_metrics)
+
+
+class DataExtractionPhase:
+    def __init__(
+        self, experiment_base_folder: Path, experiment_name: str, variant: str
+    ):
+        self.experiment_manager = None
+        self.extraction_manager = None
+        self.results_manager = None
+        self.fine_tuning_manager = None
+        self.data_manager = None
+        self.trainer = None
+        self.model_manager = None
+        self.evaluation_results = None
+        self.output_generation_pipeline = None
+        self.analysis_extraction_pipeline = None
+        self.setup_managers(experiment_base_folder, experiment_name, variant)
+
+    def setup_managers(self, experiment_base_folder, experiment_name, variant):
+        try:
+            self.experiment_manager = ExperimentConfig.from_dict(
+                experiment_base_folder, experiment_name, variant
+            )
+            self.extraction_manager = ExtractionConfigManager(
+                self.experiment_manager.extraction_dir
+            )
+            self.results_manager = ResultsConfigManager(
+                self.experiment_manager.results_dir
+            )
+            self.fine_tuning_manager = FineTuningConfigManager(
+                self.experiment_manager.fine_tuning_dir
+            )
+            self.data_manager = DatasetManager(
+                self.experiment_manager.corpora_dir,
+                self.experiment_manager.dataset_name,
+                self.extraction_manager.tokenization_config,
+            )
+            logging.info("Managers set up successfully.")
+        except Exception as e:
+            logging.error(f"Error setting up managers: {e}")
+            raise
+
+    def setup_trainer(self):
+        """Setup necessary configurations for the phase."""
+        try:
+            self.num_tags = len(self.data_manager.labels)
+            self.model_manager = ModelManager(
+                self.num_tags, self.extraction_manager.model_config
+            )
+            self.trainer = Trainer(
+                self.data_manager,
+                self.model_manager,
+                self.extraction_manager.training_config,
+                self.extraction_manager.evaluation_config,
+            )
+            logging.info("Trainer set up successfully.")
+        except Exception as e:
+            logging.error(f"Error setting up trainer: {e}")
+            raise
+
+    def fine_tune(self):
+        """Perform the fine-tuning phase."""
+        try:
+            if not self.trainer:
+                self.setup_trainer()
+            self.trainer.training_loop()
+            logging.info("Fine-tuning completed.")
+        except Exception as e:
+            logging.error(f"Error during fine-tuning: {e}")
+            raise
+
+    def setup_extractors(self):
+        """Load fine-tuned model and generate output."""
+        try:
+            fine_tuning_fh = FileHandler(self.fine_tuning_manager.save_dir)
+            results_dict = fine_tuning_fh.load_json("evaluation_metrics.json")
+            model = fine_tuning_fh.load_model("model_binary.bin")
+            model.enable_attentions()
+            self.evaluation_results = Metrics.from_dict(results_dict)
+            self.output_generation_pipeline = OutputGenerationPipeline(
+                model,
+                self.data_manager,
+                self.extraction_manager,
+                self.experiment_manager.model_path,
+            )
+            self.analysis_extraction_pipeline = AnalysisExtractionPipeline(
+                output_pipeline=self.output_generation_pipeline,
+                evaluation_results=self.evaluation_results,
+                extraction_manager=self.extraction_manager,
+                results_manager=self.results_manager,
+                split="test",
+            )
+
+            logging.info("Extractors setup.")
+        except Exception as e:
+            logging.error(f"Error during output generation: {e}")
+            raise
+
+    def extract_data(self):
+        """Run the analysis extraction pipeline."""
+        try:
+            if (
+                not self.output_generation_pipeline
+                and not self.analysis_extraction_pipeline
+            ):
+                self.setup_extractors()
+            self.output_generation_pipeline.run("test")
+            self.analysis_extraction_pipeline.run()
+            logging.info("Data extraction completed successfully.")
+        except Exception as e:
+            logging.error(f"Error during data extraction: {e}")
+            raise
+
+    def save_fine_tuning(self):
+        """Save all fine tuninig results."""
+        try:
+            saver = FineTuningSaver(self.fine_tuning_manager)
+            saver.save_all(self.trainer.model, self.trainer.eval_metrics.to_dict())
+            logging.info("Fine-tuning results saved successfully.")
+        except Exception as e:
+            logging.error(f"Error saving fine-tuning results: {e}")
+            raise
+
+    def save_results(self):
+        """Save all extracted results."""
+        try:
+            saver = ResultsSaver(self.results_manager)
+            saver.save_all(self.analysis_extraction_pipeline.outputs)
+            logging.info("Extracted results saved successfully.")
+        except Exception as e:
+            logging.error(f"Error saving extracted results: {e}")
+            raise
+
+    def run_fine_tuning_phase(self):
+        """Run the fine-tuning phase."""
+        try:
+            self.fine_tune()
+            self.save_fine_tuning()
+            logging.info("Fine-tuning phase completed successfully.")
+        except Exception as e:
+            logging.error(f"Error during fine-tuning phase: {e}")
+            raise
+
+    def run_extraction_phase(self):
+        """Run the extraction phase."""
+        try:
+            self.setup_extractors()
+            self.extract_data()
+            self.save_results()
+            logging.info("Extraction phase completed successfully.")
+        except Exception as e:
+            logging.error(f"Error during extraction phase: {e}")
+            raise
