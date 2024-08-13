@@ -295,7 +295,7 @@ class ExperimentConfig:
 
             experiment_dir = base_folder / config_dict["experiment_dir"]
             corpora_dir = base_folder / config_dict["corpora_dir"]
-            variant_dir = experiment_configs_dir / config_dict["variant_dir"]
+            variant_dir = base_folder / experiment_name / config_dict["variant_dir"]
             extraction_dir = experiment_configs_dir / config_dict["extraction_dir"]
             results_dir = experiment_configs_dir / config_dict["results_dir"]
             fine_tuning_dir = experiment_configs_dir / config_dict["fine_tuning_dir"]
@@ -312,6 +312,8 @@ class ExperimentConfig:
             model_name=config_dict["model_name"],
             model_path=config_dict["model_path"],
         )
+
+
 
 
 @dataclass
