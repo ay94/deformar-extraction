@@ -427,6 +427,7 @@ class DataExtractionPhase:
         self.results_manager = None
         self.fine_tuning_manager = None
         self.data_manager = None
+        self.num_tags = None
         self.trainer = None
         self.model_manager = None
         self.evaluation_results = None
@@ -434,29 +435,46 @@ class DataExtractionPhase:
         self.analysis_extraction_pipeline = None
         self.setup_managers(experiment_base_folder, experiment_name, variant)
 
+
     def setup_managers(self, experiment_base_folder, experiment_name, variant):
         try:
             self.experiment_manager = ExperimentConfig.from_dict(
                 experiment_base_folder, experiment_name, variant
             )
+            logging.info("Experiment manager set up successfully.")
+        except Exception as e:
+            raise Exception("Experiment manager setup failed.") from e
+            
+        try:
             self.extraction_manager = ExtractionConfigManager(
                 self.experiment_manager.extraction_dir
             )
+            logging.info("Extraction manager set up successfully.")
+        except Exception as e:
+            raise Exception("Extraction manager setup failed.") from e
+        try:
             self.results_manager = ResultsConfigManager(
                 self.experiment_manager.results_dir
             )
+            logging.info("Results manager set up successfully.")
+        except Exception as e:
+            raise Exception("Results manager setup failed.") from e
+        try:
             self.fine_tuning_manager = FineTuningConfigManager(
                 self.experiment_manager.fine_tuning_dir
             )
+            logging.info("Fine Tuning manager set up successfully.")
+        except Exception as e:
+            raise Exception("Fine Tuning manager setup failed.") from e
+        try:
             self.data_manager = DatasetManager(
                 self.experiment_manager.corpora_dir,
                 self.experiment_manager.dataset_name,
                 self.extraction_manager.tokenization_config,
             )
-            logging.info("Managers set up successfully.")
+            logging.info("Dataset manager set up successfully.")
         except Exception as e:
-            logging.error(f"Error setting up managers: {e}")
-            raise
+            raise Exception("Dataset manager setup failed.") from e
 
     def setup_trainer(self):
         """Setup necessary configurations for the phase."""

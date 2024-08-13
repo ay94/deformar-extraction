@@ -565,14 +565,18 @@ class Trainer:
             elapsed_time = time.time() - start_time
             logging.info("Epoch completed in %s s", elapsed_time)
             logging.info("\nToken-Level Evaluation Metrics:")
-            print(
+            logging.info(
+                "\n" 
+                + 
                 eval_metrics.token_results.to_markdown(
                     index=False, tablefmt="fancy_grid"
                 )
             )
 
             logging.info("\nEntity-Level Evaluation Metrics:")
-            print(
+            logging.info(
+                "\n" 
+                + 
                 eval_metrics.entity_results.to_markdown(
                     index=False, tablefmt="fancy_grid"
                 )
