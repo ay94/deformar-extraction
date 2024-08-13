@@ -1,7 +1,8 @@
 import logging
 import sys
 from pathlib import Path
-
+import sys
+import subprocess
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -92,3 +93,38 @@ def setup_logging(level=logging.INFO):
 
     logger.setLevel(level)
     return logger
+
+
+
+def save_environment_info(base_path: Path):
+    """
+    Saves the Python version and installed packages to files in the specified directory.
+
+    Args:
+        base_path (Path): The base directory where the files will be saved.
+    """
+    try:
+        # Get Python version
+        python_version = sys.version.split(" ")[0]  # Just the version number
+
+        # Get installed packages using pip freeze
+        pip_freeze_output = subprocess.check_output(["pip", "freeze"]).decode("utf-8")
+
+        # Define file paths
+        python_version_file = base_path / "python_version.txt"
+        requirements_file = base_path / "requirements.txt"
+
+        # Save Python version to a file
+        with open(python_version_file, "w") as file:
+            file.write(f"python=={python_version}\n")
+
+        # Save the installed packages to a requirements file
+        with open(requirements_file, "w") as file:
+            file.write(pip_freeze_output)
+
+        logging.info(f"Python version saved to {python_version_file}")
+        logging.info(f"Installed packages saved to {requirements_file}")
+
+    except Exception as e:
+        logging.error(f"Error saving environment info: {e}")
+        raise

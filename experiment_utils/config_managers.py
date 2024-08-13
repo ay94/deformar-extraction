@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from experiment_utils.general_utils import FileHandler
+from experiment_utils.utisl import FileHandler
 
 
 @dataclass
