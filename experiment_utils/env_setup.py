@@ -10,7 +10,7 @@ logging.basicConfig(
 )
 
 
-def init(local_drives_dir: str = None, account="ahmed.younes.sam@gmail.com") -> Path:
+def init(drive_folder: str = None, account="ahmed.younes.sam@gmail.com") -> Path:
     """
     Initializes the environment by detecting whether it's running in Google Colab or locally.
     Automatically mounts Google Drive if in Colab and uses a default or specified local directory path if running locally.
@@ -32,7 +32,7 @@ def init(local_drives_dir: str = None, account="ahmed.younes.sam@gmail.com") -> 
             setup_logging()
 
             drive.mount("/content/drive", force_remount=True)
-            return Path("/content/drive/My Drive/")
+            return Path(f"/content/drive/{drive_folder}/")
     except NameError:
         logging.info(
             "Not in Google Colab, proceeding with local or specified directory setup."
@@ -42,8 +42,8 @@ def init(local_drives_dir: str = None, account="ahmed.younes.sam@gmail.com") -> 
         raise e
 
     resolved_path = (
-        Path(local_drives_dir).expanduser().resolve()
-        if local_drives_dir
+        Path(drive_folder).expanduser().resolve()
+        if drive_folder
         else Path.home()
     )
 
