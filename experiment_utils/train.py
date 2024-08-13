@@ -581,7 +581,32 @@ class Trainer:
                     index=False, tablefmt="fancy_grid"
                 )
             )
-        self.eval_metrics = eval_metrics
+
+        # Final evaluation on the test set after training loop is finished
+        logging.info("Final Evaluation on Test Set")
+        final_eval_metrics, final_eval_loss = self.evaluate(self.test_dataloader)
+
+        logging.info("Final Test Loss: %s", final_eval_loss)
+        logging.info("\nFinal Token-Level Evaluation Metrics:")
+        logging.info(
+            "\n"
+            + 
+            final_eval_metrics.token_results.to_markdown(
+                index=False, tablefmt="fancy_grid"
+            )
+        )
+
+        logging.info("\nFinal Entity-Level Evaluation Metrics:")
+        logging.info(
+            "\n" 
+            + 
+            final_eval_metrics.entity_results.to_markdown(
+                index=False, tablefmt="fancy_grid"
+            )
+        )
+        
+        # Store the final evaluation metrics for the test set
+        self.eval_metrics = final_eval_metrics
 
     def training_loop(self):
         if self.use_cross_validation:
