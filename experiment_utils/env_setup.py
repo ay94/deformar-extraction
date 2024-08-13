@@ -31,8 +31,8 @@ def init(drive_folder: str = None, account="ahmed.younes.sam@gmail.com") -> Path
 
             setup_logging()
 
-            drive.mount("/content/drive", force_remount=True)
-            return Path(f"/content/drive/{drive_folder}/")
+            drive.mount("/content/gdrive", force_remount=True)
+            return Path(f"/content/gdrive/{drive_folder}/")
     except NameError:
         logging.info(
             "Not in Google Colab, proceeding with local or specified directory setup."
