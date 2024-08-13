@@ -10,7 +10,7 @@ logging.basicConfig(
 )
 
 
-def init(drive_folder: str = None, drive_mount: str = 'drive', account="ahmed.younes.sam@gmail.com") -> Path:
+def init(drive_folder: str = 'My Drive', drive_mount: str = 'drive', account="ahmed.younes.sam@gmail.com") -> Path:
     """
     Initializes the environment by detecting whether it's running in Google Colab or locally.
     Automatically mounts Google Drive if in Colab and uses a default or specified local directory path if running locally.
