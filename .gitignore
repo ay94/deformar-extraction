@@ -1,0 +1,152 @@
+# Compiled Python files
+*.pyc
+*.pyo
+*.pyd
+
+# C extensions
+*.so
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# celery beat schedule file
+celerybeat-schedule.*
+
+# SageMath parsed files
+*.sage.py
+
+# dotenv
+.env
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+
+# IDE files
+.idea/
+
+# macOS
+.DS_Store
+
+# Others
+*.log
+
+# Egg info
+*.egg-info/
+*.egg
+*.eggs
+develop-eggs/
+.eggs-info/
+.installed.cfg
+
+# Build artifacts
+build/
+dist/
+wheels/
+share/python-wheels/
+sdist/
+
+# Additional ignores for your specific files
+dependency_links.txt
+PKG-INFO
+requires.txt
+SOURCES.txt
+top_level.txt
+
+# Optional: You can also ignore the entire directory if not needed
+experiment_utils.egg-info/
+
+# Ignore Cython files
+*.c
+*.so
+*.pyd
+*.pyx
+*.pxd
+__pycache__/
+
+# Ignore Cython compiled Python files
+*.cpython-*.pyc
+*.cpython-*.so
+*.cpython-*.pyd
+
+source
+
+examples/.DS_Store
+
+
