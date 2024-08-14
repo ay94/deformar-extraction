@@ -21,7 +21,7 @@ from experiment_utils.utils import FileHandler
 
 
 class OutputGenerationPipeline:
-    def __init__(self, model, data_manager, config_manager, pretrained_model_path: str):
+    def __init__(self, model, data_manager, extraction_manager, pretrained_model_path: str):
         """
         Initialize the OutputGenerationPipeline with the necessary components.
 
@@ -33,7 +33,7 @@ class OutputGenerationPipeline:
         """
         self.model = model
         self.data_manager = data_manager
-        self.config_manager = config_manager
+        self.extraction_manager = extraction_manager
         self.pretrained_model_path = pretrained_model_path
         self.pretrained_model = None
         self.outputs = None
@@ -83,7 +83,7 @@ class OutputGenerationPipeline:
             model_outputs_manager = ModelOutputWorkflowManager(
                 self.model,
                 self.data_manager,
-                self.config_manager.training_config,
+                self.extraction_manager.training_config,
                 split,
             )
 
@@ -92,14 +92,14 @@ class OutputGenerationPipeline:
             pretrained_model_outputs_manager = PretrainedModelOutputWorkflowManager(
                 self.pretrained_model,
                 self.data_manager,
-                self.config_manager.training_config,
+                self.extraction_manager.training_config,
                 split,
             )
 
             # Generate tokenization outputs
             logging.info(f"Generating tokenization outputs")
             tokenization_outputs_manager = TokenizationWorkflowManager(
-                self.data_manager.corpus, self.config_manager.tokenization_config
+                self.data_manager.corpus, self.extraction_manager.tokenization_config
             )
 
             self.outputs = {
