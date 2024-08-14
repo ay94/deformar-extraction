@@ -1,0 +1,14 @@
+ANERCorp_CamelLab_arabertv02:
+  ANERCorp_CamelLab:
+    arabertv02:
+      extraction_config: extraction_config.yaml
+      model_path: aubmindlab/bert-base-arabertv02
+      results_config: results_config.yaml
+corpora_path: ExperimentData
+dataset_2_model_2:
+  dataset_2:
+    model_2:
+      extraction_config: extraction_config.yaml
+      model_path: aubmindlab/bert-base-arabertv02
+      results_config: results_config.yaml
+experiment_name: BaseLineExperiment

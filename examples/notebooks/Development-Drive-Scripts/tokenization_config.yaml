@@ -1,0 +1,7 @@
+tokenizer_path: aubmindlab/bert-base-arabertv02
+preprocessor_path: aubmindlab/bert-base-arabertv02
+max_seq_len: 256
+strategy:
+  type: core
+  index: 0
+  schema: null

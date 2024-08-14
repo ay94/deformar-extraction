@@ -1,0 +1,45 @@
+output_root: /path/to/save/results
+extraction_data:
+  analysis_data:
+    folder: analysis
+    filename: analysis_data
+    format: [json, hdf5]
+  train_data:
+    folder: analysis
+    filename: train_data
+    format: [json, hdf5]
+  entity_report:
+    folder: results
+    filename: entity_report 
+    format: json
+  token_report:
+    folder: results
+    filename: token_report
+    format: json
+  kMeans_results:
+    folder: results
+    filename: kMeans_results
+    format: json
+  entity_confusion_data:
+    folder: results
+    filename: entity_confusion_data
+    format: json
+  attention_weights_similarity:
+    folder: matrices
+    filename: attention_weights_similarity
+    format: json    
+  centroids_avg_similarity_matrix:
+    folder: matrices
+    filename: centroids_avg_similarity_matrix
+    format: json
+  attention_similarity_matrix:
+    folder: matrices
+    filename: attention_similarity_matrix
+    format: json
+  attention_weights_similarity:
+    folder: matrices
+    filename: attention_weights_similarity
+    format: json
+
+
+

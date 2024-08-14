@@ -1,0 +1,54 @@
+dataset_name: ANERCorp_CamelLab
+model_path: 'aubmindlab/bert-base-arabertv02'
+fine_tuning:
+  args:
+    train_batch_size: 16
+    test_batch_size: 8
+    shuffle: False
+    epochs: 4
+    splits: 4
+    learning_rate: 5e-5
+    warmup_ratio: 0.1
+    max_grad_norm: 1.0
+    accumulation_steps: 1
+    logging_step: 50
+  model:
+    model_path: aubmindlab/bert-base-arabertv02
+    dropout_rate: 0.3
+    enable_attentions: False
+    enable_hidden_states: False
+    initialize_output_layer: False
+  evaluation:
+    scheme: null
+    mode: null
+extraction:
+  tokenization:
+    tokenizer_path: aubmindlab/bert-base-arabertv02
+    preprocessor_path: aubmindlab/bert-base-arabertv02
+    max_seq_len: 256
+    strategy:
+      type: core
+      index: 0
+      schema: null
+  umap:
+    n_neighbors: 15
+    min_dist: 0.1
+    metric: cosine
+    random_state: 1
+    verbose: True
+    normalize_embeddings: False
+
+  clustering:
+    init_method: k-means++
+    n_init: 10
+    random_state: 1
+    n_clusters:
+      - 3
+      - 4
+      - 9
+    n_clusters_map:
+        3: boundary_clusters
+        4: entity_clusters
+        9: token_clusters
+    silhouette_metric: cosine
+    norm: l2
