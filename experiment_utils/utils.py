@@ -144,7 +144,7 @@ class FileHandler:
         """Load a Json file into a DataFrame."""
         file_path = self._create_filename(filename)
         try:
-            return pd.read_csv(file_path)
+            return pd.read_json(file_path, lines=True)
         except FileNotFoundError:
             logging.error("Json file not found: %s", file_path)
         except Exception as e:
