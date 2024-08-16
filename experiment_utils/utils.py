@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
+import plotly.graph_objects as go
+import plotly.io as pio
 import torch
 import yaml
 from datasets import load_dataset
@@ -145,6 +147,27 @@ class FileHandler:
         file_path = self._create_filename(filename)
         try:
             return pd.read_json(file_path, lines=True)
+        except FileNotFoundError:
+            logging.error("Json file not found: %s", file_path)
+        except Exception as e:
+            logging.error("Error reading Json from file: %s: %s", file_path, e)
+        return None
+
+    def write_plotly(self, filename: str, data: go.Figure) -> None:
+        """Save a Plotly figure to a JSON file."""
+        file_path = self._create_filename(filename)
+        try:
+            data.write_json(file_path)
+        except Exception as e:
+            logging.error("Failed to save Json to %s: %s", file_path, e)
+
+    def read_plotly(self, filename: str) -> Optional[go.Figure]:
+        """Load a Plotly figure from a JSON file."""
+        file_path = self._create_filename(filename)
+        try:
+            with open(file_path, "r") as file:
+                json_data = file.read()
+            return pio.from_json(json_data)
         except FileNotFoundError:
             logging.error("Json file not found: %s", file_path)
         except Exception as e:
