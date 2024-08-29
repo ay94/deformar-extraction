@@ -79,12 +79,11 @@ class OutputGenerationPipeline:
             self.initialize()
 
             # Generate model outputs
-            logging.info(f"Generating model outputs for split: {split}")
+            logging.info(f"Generating model outputs")
             model_outputs_manager = ModelOutputWorkflowManager(
                 self.model,
                 self.data_manager,
                 self.extraction_manager.training_config,
-                split,
             )
 
             # Generate pretrained model outputs
