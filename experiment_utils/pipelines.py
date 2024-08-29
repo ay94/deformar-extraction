@@ -366,7 +366,7 @@ class ResultsSaver:
             self.results_fh.save_numpy(data, file_path.with_suffix(".np"))
         elif fmt == "json":
             if isinstance(data, pd.DataFrame):
-                self.results_fh.to_json(file_path.with_suffix(".json"), data)
+                self.results_fh.to_json(data, file_path.with_suffix(".json"))
             elif isinstance(data, (go.Figure)):
                 data.write_json(file_path.with_suffix(".json"))
         else:
@@ -390,7 +390,7 @@ class FineTuningSaver:
         file_path = self.fine_tuning_manager.save_dir / config["filename"]
         fmt = config["format"]
         if fmt == "json":
-            self.fine_tuning_fh.save_json(file_path.with_suffix(".json"), data)
+            self.fine_tuning_fh.save_json(data, file_path.with_suffix(".json"))
         elif fmt == "pth":
             self.fine_tuning_fh.save_model_state(data, file_path.with_suffix(".pth"))
         elif fmt == "bin":
