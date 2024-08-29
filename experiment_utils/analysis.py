@@ -1624,13 +1624,16 @@ class TrainingImpact:
             self.attention_impact.compute_similarity(example["words"])
             for example in tqdm(sampled_data, desc="Computing attention similarities")
         ]
+        similarity_matrix = np.array(similarities).mean(0)
         change_fig = px.imshow(
-            np.array(similarities).mean(0),
+            similarity_matrix,
+            color_continuous_scale='RdBu_r',  # Set color scale here
+            template="plotly_white",
             labels=dict(x="Heads", y="Layers", color="Similarity Score"),
         )
         change_fig.layout.height = 700
         change_fig.layout.width = 700
-        return change_fig
+        return change_fig, self.similarity_matrix
 
     def compute_example_similarities(self, id: int) -> None:
         """
@@ -1702,7 +1705,7 @@ class TrainingImpact:
                 )
                 weight_diff_matrix[layer, head] = weight_diff
 
-        return self.visualize_weight_difference(weight_diff_matrix)
+        return self.visualize_weight_difference(weight_diff_matrix), self.weight_diff_matrix
 
     def visualize_weight_difference(self, weight_diff_matrix: np.ndarray) -> px.imshow:
         """
@@ -1716,6 +1719,8 @@ class TrainingImpact:
         """
         change_fig = px.imshow(
             weight_diff_matrix,
+            color_continuous_scale='RdBu_r',  # Set color scale here
+            template="plotly_white",
             labels=dict(x="Heads", y="Layers", color="Similarity Score"),
         )
         change_fig.layout.height = 700
