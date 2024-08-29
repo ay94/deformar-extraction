@@ -115,7 +115,7 @@ class FileHandler:
             logging.error("Failed to load model from %s: %s", file_path, e)
         return None
 
-    def to_csv(self, filename: str, data: pd.DataFrame, index: bool = False) -> None:
+    def to_csv(self, data: pd.DataFrame, filename: str, index: bool = False) -> None:
         """Save DataFrame to a CSV file."""
         file_path = self._create_filename(filename)
         try:
