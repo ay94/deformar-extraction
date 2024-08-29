@@ -598,5 +598,5 @@ class DataExtractionPhase:
         file_dir.mkdir(exist_ok=True, parents=True)
         file_path = file_dir / config["filename"]
         train_data = self.analysis_extraction_pipeline.generate_training_data()
-        results_fh.to_json(file_path.with_suffix(".json"), train_data)
+        results_fh.to_json(train_data, file_path.with_suffix(".json"))
         
