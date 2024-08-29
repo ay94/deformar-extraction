@@ -238,7 +238,6 @@ class AnalysisExtractionPipeline:
             raise
     def add_training_data(self):
         train_data = self.analysis_manager.generate_train_df()
-        self.outputs["train_data"] = train_data
         return train_data
 
     @staticmethod
@@ -360,7 +359,7 @@ class ResultsSaver:
 
     def save(self, data, config):
         file_path = self.results_manager.results_dir / config["folder"] / config["filename"]
-        file_path.mkdir(exist_ok=True)
+        file_path.mkdir(exist_ok=True, parents=True)
         fmt = config["format"]
         if fmt == "np":
             self.results_fh.save_numpy(file_path.with_suffix(".np"), data)
