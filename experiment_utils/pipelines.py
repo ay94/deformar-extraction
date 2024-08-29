@@ -191,7 +191,7 @@ class AnalysisExtractionPipeline:
             self.output_pipeline.model.bert,
         )
 
-    def run(self, include_train_df=False) -> Dict[str, object]:
+    def run(self) -> Dict[str, object]:
         """
         Run the analysis extraction pipeline.
 
@@ -234,11 +234,11 @@ class AnalysisExtractionPipeline:
                 "attention_weights_similarity_matrix": self.training_impact.weight_diff_matrix,
                 "entity_confusion_data": entity_confusion_data,
             }
-            if include_train_df:
-                self.outputs["train_df"] = self.analysis_manager.generate_train_df()
         except Exception as e:
             logging.error("Error running AnalysisExtractionPipeline: %s", e)
             raise
+    def add_training_data(self):
+        self.outputs["train_data"] = self.analysis_manager.generate_train_df()
 
     @staticmethod
     def combine_results(entity_results, token_results, average_silhouette_scores):
@@ -254,27 +254,21 @@ class AnalysisExtractionPipeline:
     @staticmethod
     def combine_kmeans_results(data):
         return pd.DataFrame.from_dict(data, orient="index").reset_index().rename(columns={'index': 'n_clusters'})
-
     @property
     def analysis_data(self):
         return self.outputs.get("analysis_data")
-
     @property
     def entity_report(self):
         return self.outputs.get("entity_report")
-
     @property
     def token_report(self):
         return self.outputs.get("token_report")
-
     @property
     def results(self):
         return self.outputs.get("results")
-
     @property
     def kmeans_results(self):
         return self.outputs.get("kmeans_results")
-
     @property
     def centroids_avg_similarity_matrix(self):
         return self.outputs.get("centroids_avg_similarity_matrix")
@@ -594,3 +588,6 @@ class DataExtractionPhase:
         except Exception as e:
             logging.error(f"Error during extraction phase: {e}")
             raise
+        
+    def generate_train_df(self):
+        self.analysis_extraction_pipeline.add_training_data()
