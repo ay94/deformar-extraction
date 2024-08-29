@@ -359,7 +359,8 @@ class ResultsSaver:
         self.results_fh = FileHandler(self.results_manager.results_dir)
 
     def save(self, data, config):
-        file_path = self.results_manager.results_dir / config["filename"]
+        file_path = self.results_manager.results_dir / config["folder"] / config["filename"]
+        file_path.mkdir(exist_ok=True)
         fmt = config["format"]
         if fmt == "json":
             if isinstance(data, pd.DataFrame):
