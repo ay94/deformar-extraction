@@ -236,7 +236,7 @@ class AnalysisExtractionPipeline:
         except Exception as e:
             logging.error("Error running AnalysisExtractionPipeline: %s", e)
             raise
-    def add_training_data(self):
+    def generate_training_data(self):
         train_data = self.analysis_manager.generate_train_df()
         return train_data
 
@@ -590,4 +590,4 @@ class DataExtractionPhase:
             raise
         
     def generate_train_df(self):
-        return self.analysis_extraction_pipeline.add_training_data()
+        return self.analysis_extraction_pipeline.generate_training_data()
