@@ -387,30 +387,40 @@ class ResultsConfigManager:
     @property
     def entity_report(self) -> Dict[str, Any]:
         return self.config.get("entity_report", {})
-
+    
     @property
     def token_report(self) -> Dict[str, Any]:
         return self.config.get("token_report", {})
-
+    
     @property
     def kmeans_results(self) -> Dict[str, Any]:
         return self.config.get("kMeans_results", {})
-
+    
     @property
     def entity_confusion_data(self) -> Dict[str, Any]:
         return self.config.get("entity_confusion_data", {})
-
+    
     @property
-    def attention_weights_similarity(self) -> Dict[str, Any]:
-        return self.config.get("attention_weights_similarity", {})
-
+    def attention_weights_similarity_matrix(self) -> Dict[str, Any]:
+        return self.config.get("attention_weights_similarity_matrix", {})
+    
+    @property
+    def attention_weights_similarity_heatmap(self) -> Dict[str, Any]:
+        return self.config.get("attention_weights_similarity_heatmap", {})
+    
+    @property
+    def attention_similarity_matrix(self) -> Dict[str, Any]:
+        return self.config.get("attention_similarity_matrix", {})
+    
+    @property
+    def attention_similarity_heatmap(self) -> Dict[str, Any]:
+        return self.config.get("attention_similarity_heatmap", {})
+    
     @property
     def centroids_avg_similarity_matrix(self) -> Dict[str, Any]:
         return self.config.get("centroids_avg_similarity_matrix", {})
 
-    @property
-    def attention_similarity_matrix(self) -> Dict[str, Any]:
-        return self.config.get("attention_similarity_matrix", {})
+    
 
 
 class FineTuningConfigManager:
