@@ -358,12 +358,13 @@ class ResultsSaver:
         self.results_fh = FileHandler(self.results_manager.results_dir)
 
     def save(self, data, config):
-        file_path = self.results_manager.results_dir / config["folder"] / config["filename"]
-        file_path.mkdir(exist_ok=True, parents=True)
+        file_dir = self.results_manager.results_dir / config["folder"] 
+        file_dir.mkdir(exist_ok=True, parents=True)
+        file_path = file_dir / config["filename"]
         fmt = config["format"]
         if fmt == "np":
-            self.results_fh.save_numpy(file_path.with_suffix(".np"), data)
-        if fmt == "json":
+            self.results_fh.save_numpy(data, file_path.with_suffix(".np"))
+        elif fmt == "json":
             if isinstance(data, pd.DataFrame):
                 self.results_fh.to_json(file_path.with_suffix(".json"), data)
             elif isinstance(data, (go.Figure)):

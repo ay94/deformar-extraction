@@ -32,7 +32,7 @@ class FileHandler:
         """Return the full path for a given filename within the project folder."""
         return self.base_folder / file_name
 
-    def save_json(self, filename: str, data: Any) -> None:
+    def save_json(self, data: Any, filename: str) -> None:
         """Save data to a JSON file."""
         file_path = self._create_filename(filename)
         try:
@@ -134,7 +134,7 @@ class FileHandler:
             logging.error("Error reading CSV from file: %s: %s", file_path, e)
         return None
 
-    def to_json(self, filename: str, data: pd.DataFrame) -> None:
+    def to_json(self, data: pd.DataFrame, filename: str,) -> None:
         """Save DataFrame to a Json file."""
         file_path = self._create_filename(filename)
         try:
@@ -153,7 +153,7 @@ class FileHandler:
             logging.error("Error reading Json from file: %s: %s", file_path, e)
         return None
 
-    def write_plotly(self, filename: str, data: go.Figure) -> None:
+    def write_plotly(self, data: go.Figure, filename: str) -> None:
         """Save a Plotly figure to a JSON file."""
         file_path = self._create_filename(filename)
         try:
