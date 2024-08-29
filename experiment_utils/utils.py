@@ -4,7 +4,7 @@ import pickle
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
@@ -199,6 +199,25 @@ class FileHandler:
             logging.error("YAML file not found: %s", file_path)
         except yaml.YAMLError as e:
             logging.error("Error parsing YAML file: %s - %s", file_path, e)
+        return None
+    
+    def save_numpy(self, array: np.ndarray, filename: str) -> None:
+        """Save a NumPy array to a binary .npy file."""
+        file_path = self._create_filename(filename)
+        try:
+            np.save(file_path, array)
+        except Exception as e:
+            logging.error("Failed to save NumPy array to %s: %s", file_path, e)
+
+    def load_numpy(self, filename: str) -> Optional[np.ndarray]:
+        """Load a NumPy array from a binary .npy file."""
+        file_path = self._create_filename(filename)
+        try:
+            return np.load(file_path)
+        except FileNotFoundError:
+            logging.error("NumPy file not found: %s", file_path)
+        except Exception as e:
+            logging.error("Error loading NumPy array from file: %s: %s", file_path, e)
         return None
 
 

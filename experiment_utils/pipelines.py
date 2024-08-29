@@ -207,10 +207,10 @@ class AnalysisExtractionPipeline:
                 kmeans_results,
                 centroids_avg_similarity_matrix,
             ) = self.analysis_manager.run()
-            attention_similarity_matrix = (
+            attention_similarity_heatmap = (
                 self.training_impact.compute_attention_similarities()
             )
-            attention_weights_similarity = self.training_impact.compare_weights()
+            attention_weights_similarity_heatmap = self.training_impact.compare_weights()
             entity_confusion_data = (
                 self.entity_confusion.generate_entity_confusion_data()
             )
@@ -228,8 +228,10 @@ class AnalysisExtractionPipeline:
                     kmeans_results
                 ),
                 "centroids_avg_similarity_matrix": centroids_avg_similarity_matrix,
-                "attention_similarity_matrix": attention_similarity_matrix,
-                "attention_weights_similarity": attention_weights_similarity,
+                "attention_similarity_heatmap": attention_similarity_heatmap,
+                "attention_similarity_matrix": self.training_impact.similarity_matrix,
+                "attention_weights_similarity_heatmap": attention_weights_similarity_heatmap,
+                "attention_weights_similarity_matrix": self.training_impact.weight_diff_matrix,
                 "entity_confusion_data": entity_confusion_data,
             }
             if include_train_df:
@@ -276,15 +278,18 @@ class AnalysisExtractionPipeline:
     @property
     def centroids_avg_similarity_matrix(self):
         return self.outputs.get("centroids_avg_similarity_matrix")
-
     @property
     def attention_similarity_matrix(self):
         return self.outputs.get("attention_similarity_matrix")
-
+    @property
+    def attention_similarity_heatmap(self):
+        return self.outputs.get("attention_similarity_heatmap")
     @property
     def attention_weights_similarity(self):
         return self.outputs.get("attention_weights_similarity")
-
+    @property
+    def attention_weights_similarity_heatmap(self):
+        return self.outputs.get("attention_weights_similarity_heatmap")
     @property
     def entity_confusion_data(self):
         return self.outputs.get("entity_confusion_data")
@@ -362,6 +367,8 @@ class ResultsSaver:
         file_path = self.results_manager.results_dir / config["folder"] / config["filename"]
         file_path.mkdir(exist_ok=True)
         fmt = config["format"]
+        if fmt == "np":
+            self.results_fh.to_json(file_path.with_suffix(".np"), data)
         if fmt == "json":
             if isinstance(data, pd.DataFrame):
                 self.results_fh.to_json(file_path.with_suffix(".json"), data)
