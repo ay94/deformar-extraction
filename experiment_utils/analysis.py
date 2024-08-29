@@ -1626,7 +1626,7 @@ class TrainingImpact:
         ]
         self.similarity_matrix = np.array(similarities).mean(0)
         change_fig = px.imshow(
-            similarity_matrix,
+            self.similarity_matrix,
             color_continuous_scale='RdBu_r',  # Set color scale here
             template="plotly_white",
             labels=dict(x="Heads", y="Layers", color="Similarity Score"),
@@ -1680,7 +1680,7 @@ class TrainingImpact:
         logging.info("Comparing weights")
         num_layers = len(self.pretrained_model.encoder.layer)
         num_heads = self.pretrained_model.config.num_attention_heads
-        weight_diff_matrix = np.zeros((num_layers, num_heads))
+        self.weight_diff_matrix = np.zeros((num_layers, num_heads))
 
         for layer in range(num_layers):
             for head in range(num_heads):
@@ -1705,7 +1705,7 @@ class TrainingImpact:
                 )
                 self.weight_diff_matrix[layer, head] = weight_diff
 
-        return self.visualize_weight_difference(weight_diff_matrix)
+        return self.visualize_weight_difference(self.weight_diff_matrix)
 
     def visualize_weight_difference(self, weight_diff_matrix: np.ndarray) -> px.imshow:
         """
