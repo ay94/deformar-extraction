@@ -591,4 +591,12 @@ class DataExtractionPhase:
             raise
         
     def generate_train_df(self):
-        return self.analysis_extraction_pipeline.generate_training_data()
+        results_manager = self.results_manager
+        results_fh = FileHandler(self.results_manager.results_dir)
+        config = results_manager.train_data
+        file_dir = results_manager.results_dir / config["folder"] 
+        file_dir.mkdir(exist_ok=True, parents=True)
+        file_path = file_dir / config["filename"]
+        train_data = self.analysis_extraction_pipeline.generate_training_data()
+        results_fh.to_json(file_path.with_suffix(".json"), train_data)
+        
