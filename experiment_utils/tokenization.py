@@ -271,9 +271,12 @@ class TokenizationConfigManager:
         self.preprocessor_path = self.config.preprocessor_path
 
     def load_tokenizer(self):
-        logging.info("Loading Tokenizer %s", self.tokenizer_path)
+        # lower_case = self.tokenizer_path == "bert-base-multilingual-cased", this is scrapped as it should be false see here huggingface/transformers#131, in arabert lower case normalize the script
+        lower_case = False
+        logging.info("Loading Tokenizer %s, Lower Case %s", self.tokenizer_path, lower_case)
+        
         tokenizer = AutoTokenizer.from_pretrained(
-            self.tokenizer_path, do_lower_case=False
+            self.tokenizer_path, do_lower_case=lower_case
         )
         preprocessor = None
         if self.preprocessor_path:

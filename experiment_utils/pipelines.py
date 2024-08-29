@@ -237,7 +237,9 @@ class AnalysisExtractionPipeline:
             logging.error("Error running AnalysisExtractionPipeline: %s", e)
             raise
     def add_training_data(self):
-        self.outputs["train_data"] = self.analysis_manager.generate_train_df()
+        train_data = self.analysis_manager.generate_train_df()
+        self.outputs["train_data"] = train_data
+        return train_data
 
     @staticmethod
     def combine_results(entity_results, token_results, average_silhouette_scores):
@@ -589,4 +591,4 @@ class DataExtractionPhase:
             raise
         
     def generate_train_df(self):
-        self.analysis_extraction_pipeline.add_training_data()
+        return self.analysis_extraction_pipeline.add_training_data()
