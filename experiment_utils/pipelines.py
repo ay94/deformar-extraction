@@ -216,8 +216,12 @@ class AnalysisExtractionPipeline:
 
             self.outputs = {
                 "analysis_data": analysis_data,
-                "entity_report": self.evaluation_results.entity_report,
-                "token_report": self.evaluation_results.token_report,
+                "entity_report": AnalysisExtractionPipeline.convert_dict_to_df(
+                    self.evaluation_results.entity_report
+                ),
+                "token_report": AnalysisExtractionPipeline.convert_dict_to_df(
+                    self.evaluation_results.token_report
+                ),
                 "results": AnalysisExtractionPipeline.combine_results(
                     pd.DataFrame(self.evaluation_results.entity_results),
                     pd.DataFrame(self.evaluation_results.token_results),
@@ -254,6 +258,10 @@ class AnalysisExtractionPipeline:
     @staticmethod
     def combine_kmeans_results(data):
         return pd.DataFrame.from_dict(data, orient="index").reset_index().rename(columns={'index': 'n_clusters'})
+    
+    @staticmethod
+    def convert_dict_to_df(data):
+        return pd.DataFrame(data)
     @property
     def analysis_data(self):
         return self.outputs.get("analysis_data")
