@@ -79,12 +79,11 @@ class OutputGenerationPipeline:
             self.initialize()
 
             # Generate model outputs
-            logging.info(f"Generating model outputs for split: {split}")
+            logging.info(f"Generating model outputs")
             model_outputs_manager = ModelOutputWorkflowManager(
                 self.model,
                 self.data_manager,
                 self.extraction_manager.training_config,
-                split,
             )
 
             # Generate pretrained model outputs
@@ -191,7 +190,7 @@ class AnalysisExtractionPipeline:
             self.output_pipeline.model.bert,
         )
 
-    def run(self, include_train_df=False) -> Dict[str, object]:
+    def run(self) -> Dict[str, object]:
         """
         Run the analysis extraction pipeline.
 
@@ -207,18 +206,22 @@ class AnalysisExtractionPipeline:
                 kmeans_results,
                 centroids_avg_similarity_matrix,
             ) = self.analysis_manager.run()
-            attention_similarity_matrix = (
+            attention_similarity_heatmap = (
                 self.training_impact.compute_attention_similarities()
             )
-            attention_weights_similarity = self.training_impact.compare_weights()
+            attention_weights_similarity_heatmap = self.training_impact.compare_weights()
             entity_confusion_data = (
                 self.entity_confusion.generate_entity_confusion_data()
             )
 
             self.outputs = {
                 "analysis_data": analysis_data,
-                "entity_report": self.evaluation_results.entity_report,
-                "token_report": self.evaluation_results.token_report,
+                "entity_report": AnalysisExtractionPipeline.convert_dict_to_df(
+                    self.evaluation_results.entity_report
+                ),
+                "token_report": AnalysisExtractionPipeline.convert_dict_to_df(
+                    self.evaluation_results.token_report
+                ),
                 "results": AnalysisExtractionPipeline.combine_results(
                     pd.DataFrame(self.evaluation_results.entity_results),
                     pd.DataFrame(self.evaluation_results.token_results),
@@ -228,15 +231,18 @@ class AnalysisExtractionPipeline:
                     kmeans_results
                 ),
                 "centroids_avg_similarity_matrix": centroids_avg_similarity_matrix,
-                "attention_similarity_matrix": attention_similarity_matrix,
-                "attention_weights_similarity": attention_weights_similarity,
+                "attention_similarity_heatmap": attention_similarity_heatmap,
+                "attention_similarity_matrix": self.training_impact.similarity_matrix,
+                "attention_weights_similarity_heatmap": attention_weights_similarity_heatmap,
+                "attention_weights_similarity_matrix": self.training_impact.weight_diff_matrix,
                 "entity_confusion_data": entity_confusion_data,
             }
-            if include_train_df:
-                self.outputs["train_df"] = self.analysis_manager.generate_train_df()
         except Exception as e:
             logging.error("Error running AnalysisExtractionPipeline: %s", e)
             raise
+    def generate_training_data(self):
+        train_data = self.analysis_manager.generate_train_df()
+        return train_data
 
     @staticmethod
     def combine_results(entity_results, token_results, average_silhouette_scores):
@@ -251,40 +257,41 @@ class AnalysisExtractionPipeline:
 
     @staticmethod
     def combine_kmeans_results(data):
-        return pd.DataFrame.from_dict(data, orient="index")
-
+        return pd.DataFrame.from_dict(data, orient="index").reset_index().rename(columns={'index': 'n_clusters'})
+    
+    @staticmethod
+    def convert_dict_to_df(data):
+        return pd.DataFrame(data)
     @property
     def analysis_data(self):
         return self.outputs.get("analysis_data")
-
     @property
     def entity_report(self):
         return self.outputs.get("entity_report")
-
     @property
     def token_report(self):
         return self.outputs.get("token_report")
-
     @property
     def results(self):
         return self.outputs.get("results")
-
     @property
     def kmeans_results(self):
         return self.outputs.get("kmeans_results")
-
     @property
     def centroids_avg_similarity_matrix(self):
         return self.outputs.get("centroids_avg_similarity_matrix")
-
     @property
     def attention_similarity_matrix(self):
         return self.outputs.get("attention_similarity_matrix")
-
+    @property
+    def attention_similarity_heatmap(self):
+        return self.outputs.get("attention_similarity_heatmap")
     @property
     def attention_weights_similarity(self):
         return self.outputs.get("attention_weights_similarity")
-
+    @property
+    def attention_weights_similarity_heatmap(self):
+        return self.outputs.get("attention_weights_similarity_heatmap")
     @property
     def entity_confusion_data(self):
         return self.outputs.get("entity_confusion_data")
@@ -333,7 +340,6 @@ class ExperimentInitializer:
             "fine_tuning_dir": str(fine_tuning_dir.name),
             "model_path": self.experiment_config["model_path"],
         }
-        # self.results_config['results_dir'] = str(variant_dir.name / self.results_config.pop('results_dir'))
         self.write_config(experiment_config, configs_dir, "experiment_config.yaml")
         self.write_config(
             self.extraction_config,
@@ -360,11 +366,15 @@ class ResultsSaver:
         self.results_fh = FileHandler(self.results_manager.results_dir)
 
     def save(self, data, config):
-        file_path = self.results_manager.results_dir / config["filename"]
+        file_dir = self.results_manager.results_dir / config["folder"] 
+        file_dir.mkdir(exist_ok=True, parents=True)
+        file_path = file_dir / config["filename"]
         fmt = config["format"]
-        if fmt == "json":
+        if fmt == "np":
+            self.results_fh.save_numpy(data, file_path.with_suffix(".np"))
+        elif fmt == "json":
             if isinstance(data, pd.DataFrame):
-                self.results_fh.to_json(file_path.with_suffix(".json"), data)
+                self.results_fh.to_json(data, file_path.with_suffix(".json"))
             elif isinstance(data, (go.Figure)):
                 data.write_json(file_path.with_suffix(".json"))
         else:
@@ -388,7 +398,7 @@ class FineTuningSaver:
         file_path = self.fine_tuning_manager.save_dir / config["filename"]
         fmt = config["format"]
         if fmt == "json":
-            self.fine_tuning_fh.save_json(file_path.with_suffix(".json"), data)
+            self.fine_tuning_fh.save_json(data, file_path.with_suffix(".json"))
         elif fmt == "pth":
             self.fine_tuning_fh.save_model_state(data, file_path.with_suffix(".pth"))
         elif fmt == "bin":
@@ -587,3 +597,14 @@ class DataExtractionPhase:
         except Exception as e:
             logging.error(f"Error during extraction phase: {e}")
             raise
+        
+    def generate_train_df(self):
+        results_manager = self.results_manager
+        results_fh = FileHandler(self.results_manager.results_dir)
+        config = results_manager.train_data
+        file_dir = results_manager.results_dir / config["folder"] 
+        file_dir.mkdir(exist_ok=True, parents=True)
+        file_path = file_dir / config["filename"]
+        train_data = self.analysis_extraction_pipeline.generate_training_data()
+        results_fh.to_json(train_data, file_path.with_suffix(".json"))
+        

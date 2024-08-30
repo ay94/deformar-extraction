@@ -52,7 +52,8 @@ class TCDataset:
             preprocessor = ArabertPreprocessor(preprocessor_path)
 
         if tokenizer_path:
-            lower_case = tokenizer_path == "bert-base-multilingual-cased"
+            # lower_case = tokenizer_path == "bert-base-multilingual-cased"
+            lower_case = False
             logging.info(
                 "Loading Tokenizer: %s, lower_case: %s", tokenizer_path, lower_case
             )

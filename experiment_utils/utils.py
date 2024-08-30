@@ -4,8 +4,10 @@ import pickle
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-
+import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
+import plotly.io as pio
 import torch
 import yaml
 from datasets import load_dataset
@@ -30,7 +32,7 @@ class FileHandler:
         """Return the full path for a given filename within the project folder."""
         return self.base_folder / file_name
 
-    def save_json(self, filename: str, data: Any) -> None:
+    def save_json(self, data: Any, filename: str) -> None:
         """Save data to a JSON file."""
         file_path = self._create_filename(filename)
         try:
@@ -113,7 +115,7 @@ class FileHandler:
             logging.error("Failed to load model from %s: %s", file_path, e)
         return None
 
-    def to_csv(self, filename: str, data: pd.DataFrame, index: bool = False) -> None:
+    def to_csv(self, data: pd.DataFrame, filename: str, index: bool = False) -> None:
         """Save DataFrame to a CSV file."""
         file_path = self._create_filename(filename)
         try:
@@ -132,7 +134,7 @@ class FileHandler:
             logging.error("Error reading CSV from file: %s: %s", file_path, e)
         return None
 
-    def to_json(self, filename: str, data: pd.DataFrame) -> None:
+    def to_json(self, data: pd.DataFrame, filename: str,) -> None:
         """Save DataFrame to a Json file."""
         file_path = self._create_filename(filename)
         try:
@@ -144,7 +146,28 @@ class FileHandler:
         """Load a Json file into a DataFrame."""
         file_path = self._create_filename(filename)
         try:
-            return pd.read_csv(file_path)
+            return pd.read_json(file_path, lines=True)
+        except FileNotFoundError:
+            logging.error("Json file not found: %s", file_path)
+        except Exception as e:
+            logging.error("Error reading Json from file: %s: %s", file_path, e)
+        return None
+
+    def write_plotly(self, data: go.Figure, filename: str) -> None:
+        """Save a Plotly figure to a JSON file."""
+        file_path = self._create_filename(filename)
+        try:
+            data.write_json(file_path)
+        except Exception as e:
+            logging.error("Failed to save Json to %s: %s", file_path, e)
+
+    def read_plotly(self, filename: str) -> Optional[go.Figure]:
+        """Load a Plotly figure from a JSON file."""
+        file_path = self._create_filename(filename)
+        try:
+            with open(file_path, "r") as file:
+                json_data = file.read()
+            return pio.from_json(json_data)
         except FileNotFoundError:
             logging.error("Json file not found: %s", file_path)
         except Exception as e:
@@ -176,6 +199,25 @@ class FileHandler:
             logging.error("YAML file not found: %s", file_path)
         except yaml.YAMLError as e:
             logging.error("Error parsing YAML file: %s - %s", file_path, e)
+        return None
+    
+    def save_numpy(self, array: np.ndarray, filename: str) -> None:
+        """Save a NumPy array to a binary .npy file."""
+        file_path = self._create_filename(filename)
+        try:
+            np.save(file_path, array)
+        except Exception as e:
+            logging.error("Failed to save NumPy array to %s: %s", file_path, e)
+
+    def load_numpy(self, filename: str) -> Optional[np.ndarray]:
+        """Load a NumPy array from a binary .npy file."""
+        file_path = self._create_filename(filename)
+        try:
+            return np.load(file_path)
+        except FileNotFoundError:
+            logging.error("NumPy file not found: %s", file_path)
+        except Exception as e:
+            logging.error("Error loading NumPy array from file: %s: %s", file_path, e)
         return None
 
 
