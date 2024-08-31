@@ -378,7 +378,7 @@ class ResultsSaver:
             elif isinstance(data, (go.Figure)):
                 data.write_json(file_path.with_suffix(".json"))
         else:
-            raise ValueError(f"Unsupported data type or format: {fmt}")
+            logging.error("Unsupported data type or format %s in config %s ", fmt, config)
 
     def save_all(self, results):
         results_dir = self.results_manager.results_dir
