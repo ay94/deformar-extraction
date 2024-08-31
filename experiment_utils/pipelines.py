@@ -370,8 +370,8 @@ class ResultsSaver:
         file_dir.mkdir(exist_ok=True, parents=True)
         file_path = file_dir / config["filename"]
         fmt = config["format"]
-        if fmt == "np":
-            self.results_fh.save_numpy(data, file_path.with_suffix(".np"))
+        if fmt == "npy":
+            self.results_fh.save_numpy(data, file_path)
         elif fmt == "json":
             if isinstance(data, pd.DataFrame):
                 self.results_fh.to_json(data, file_path.with_suffix(".json"))
