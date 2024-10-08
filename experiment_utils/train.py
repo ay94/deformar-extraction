@@ -205,7 +205,7 @@ class TCModel(nn.Module):
         if initialize_output_layer:
             self.init_weights()
 
-        self.avg_loss = nn.CrossEntropyLoss()
+        self.cross_entropy_loss = nn.CrossEntropyLoss()
         self.loss_per_item = nn.CrossEntropyLoss(reduction="none")
 
     def init_weights(self):
@@ -218,9 +218,9 @@ class TCModel(nn.Module):
         active_labels = torch.where(
             active_loss,
             target.view(-1),
-            torch.tensor(self.avg_loss.ignore_index).type_as(target),
+            torch.tensor(self.cross_entropy_loss.ignore_index).type_as(target),
         )
-        average_loss = self.avg_loss(active_logits, active_labels)
+        average_loss = self.cross_entropy_loss(active_logits, active_labels)
         items_loss = self.loss_per_item(active_logits, active_labels)
         return average_loss, items_loss
 
