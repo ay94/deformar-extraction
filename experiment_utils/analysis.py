@@ -604,24 +604,46 @@ class UtilityFunctions:
         """
         Determine the type of error for a given row based on the 'truth' and 'pred' columns.
         """
+        true_label, pred_label = row["true_labels"], row["pred_labels"]
+        # If both are the same, it's correct (no error)
+        if true_label == pred_label:
+            return "No Errors"
+        
+        # Handle cases where one or both labels are 'O'
+        if true_label == 'O' and pred_label != 'O':
+            return "Chunk"  # False entity predicted
+        if true_label != 'O' and pred_label == 'O':
+            return "Entity and Chunk"  # Missed entity and chunk boundary
+        
+        # Extract entity types without position tags (like "B-", "I-")
+        true_entity = true_label.split("-")[-1] if "-" in true_label else true_label
+        pred_entity = pred_label.split("-")[-1] if "-" in pred_label else pred_label
 
-        true, pred = row["true_labels"], row["pred_labels"]
+        # If entity types are different (e.g., LOC vs. PER)
+        if true_entity != pred_entity:
+            # If both entity type and position (B- vs I-) are wrong
+            return "Entity and Chunk" if true_label[0] != pred_label[0] else "Entity"
 
-        # Check if both labels are exactly the same, including 'O'
-        if true == pred:
-            return "Correct"
+        # If entity types are the same but position tags (B- vs I-) are wrong
+        return "Chunk"
 
-        # Check for 'O' to avoid IndexError when accessing parts of the string
-        elif "O" in [true, pred]:
-            return "Chunk"  # 'Chunk' error since one is 'O' and the other isn't
+        # true, pred = row["true_labels"], row["pred_labels"]
 
-        # Extract parts after the dash and compare
-        elif true.split("-")[1] != pred.split("-")[1]:
-            return "Entity"
+        # # Check if both labels are exactly the same, including 'O'
+        # if true == pred:
+        #     return "Correct"
 
-        # If not correct and no entity type mismatch, it must be a chunk error
-        else:
-            return "Chunk"
+        # # Check for 'O' to avoid IndexError when accessing parts of the string
+        # elif "O" in [true, pred]:
+        #     return "Chunk"  # 'Chunk' error since one is 'O' and the other isn't
+
+        # # Extract parts after the dash and compare
+        # elif true.split("-")[1] != pred.split("-")[1]:
+        #     return "Entity"
+
+        # # If not correct and no entity type mismatch, it must be a chunk error
+        # else:
+        #     return "Chunk"
 
     @staticmethod
     def softmax(logits):
