@@ -232,7 +232,7 @@ class TokenEvaluationStrategy(EvaluationStrategy):
 
 class EntityEvaluationStrategy(EvaluationStrategy):
     def compute_metrics(self, true_labels, predictions, entity_config):
-        scheme = entity_config.get('scheme')  # Default to 'none' if not specified
+        scheme = entity_config.scheme  # Default to 'none' if not specified
 
         # Check if the scheme is valid and not 'none'
         try:
