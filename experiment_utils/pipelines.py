@@ -243,7 +243,7 @@ class AnalysisExtractionPipeline:
                 "attention_similarity_matrix": self.training_impact.similarity_matrix,
                 "attention_weights_similarity_heatmap": attention_weights_similarity_heatmap,
                 "attention_weights_similarity_matrix": self.training_impact.weight_diff_matrix,
-                "entity_confusion_data": entity_confusion_data,
+                "entity_non_strict_confusion_data": entity_confusion_data,
                 "entity_strict_confusion_data": entity_strict_confusion_data,
             }
         except Exception as e:
@@ -311,7 +311,7 @@ class AnalysisExtractionPipeline:
         return self.outputs.get("attention_weights_similarity_heatmap")
     @property
     def entity_confusion_data(self):
-        return self.outputs.get("entity_confusion_data")
+        return self.outputs.get("entity_non_strict_confusion_data")
     def entity_strict_confusion_data(self):
         return self.outputs.get("entity_strict_confusion_data")
 
