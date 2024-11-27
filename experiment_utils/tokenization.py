@@ -85,14 +85,14 @@ class CoreTokenStrategy(TokenStrategy):
 
 
 class AllTokensStrategy(TokenStrategy):
-    def __init__(self, schema="BIO"):
-        self.schema = schema
+    def __init__(self, scheme="BIO"):
+        self.scheme = scheme
 
     def handle_tokens(
         self, tokens: List[str], label: str, tokens_data: Dict[str, List[str]] = None
     ):
         if tokens:
-            all_labels = self.get_labels(label, len(tokens), self.schema)
+            all_labels = self.get_labels(label, len(tokens), self.scheme)
             if tokens_data:
                 tokens_data["core_tokens"].extend(tokens)
                 tokens_data["labels"].extend(all_labels)
@@ -109,9 +109,9 @@ class AllTokensStrategy(TokenStrategy):
             logging.warning("No tokens provided for tokenization.")
 
     def get_labels(
-        self, initial_label: str, token_count: int, schema: str
+        self, initial_label: str, token_count: int, scheme: str
     ) -> List[str]:
-        match schema:
+        match scheme:
             case "BIO":
                 if initial_label.startswith("B-"):
                     return [initial_label] + [
@@ -119,7 +119,7 @@ class AllTokensStrategy(TokenStrategy):
                     ]
                 return [initial_label] * token_count
             case _:
-                # Default case if the schema is not recognized
+                # Default case if the scheme is not recognized
                 return [initial_label] * token_count
 
 
@@ -142,7 +142,7 @@ class TokenStrategyFactory:
         strategy = self.config.strategy
         strategy_type = strategy.type
         index = strategy.index
-        schema = strategy.schema
+        scheme = strategy.scheme
 
         # Validate the configuration
         valid_types = ["core", "all"]  # Define valid strategy types
@@ -160,12 +160,12 @@ class TokenStrategyFactory:
                 )
             params["index"] = index
         elif strategy_type == "all":
-            if schema is None:
-                logging.error("Missing 'schema' for 'all' strategy in configuration.")
+            if scheme is None:
+                logging.error("Missing 'scheme' for 'all' strategy in configuration.")
                 raise ValueError(
-                    "Missing 'schema' for 'all' strategy in configuration."
+                    "Missing 'scheme' for 'all' strategy in configuration."
                 )
-            params["schema"] = schema
+            params["scheme"] = scheme
         # Use the factory to get the appropriate strategy
         return strategy_type, params
 
