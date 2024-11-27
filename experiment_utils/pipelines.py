@@ -388,6 +388,8 @@ class ResultsSaver:
         elif fmt == "json":
             if isinstance(data, pd.DataFrame):
                 self.results_fh.to_json(data, file_path.with_suffix(".json"))
+            else:
+                self.results_fh.save_json(data, file_path.with_suffix(".json"))
             elif isinstance(data, (go.Figure)):
                 data.write_json(file_path.with_suffix(".json"))
         else:
