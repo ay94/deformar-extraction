@@ -397,8 +397,12 @@ class ResultsConfigManager:
         return self.config.get("kMeans_results", {})
     
     @property
-    def entity_confusion_data(self) -> Dict[str, Any]:
-        return self.config.get("entity_confusion_data", {})
+    def entity_non_strict_confusion_data(self) -> Dict[str, Any]:
+        return self.config.get("entity_non_strict_confusion_data", {})
+    
+    @property
+    def entity_strict_confusion_data(self) -> Dict[str, Any]:
+        return self.config.get("entity_strict_confusion_data", {})
     
     @property
     def attention_weights_similarity_matrix(self) -> Dict[str, Any]:

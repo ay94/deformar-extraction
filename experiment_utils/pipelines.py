@@ -183,12 +183,6 @@ class AnalysisExtractionPipeline:
             self.output_pipeline.data_manager,
             self.split
         )
-        '''
-            TODO: this bit here need to be replaced with the workflow in the dashboard
-            1- extract entities using seqeval functions
-            2- create a confusion matrix
-            3- create error confusion matrix
-        '''
         self.entity_confusion = EntityConfusion(self.evaluation_results)
         self.strict_entity_confusion = StrictEntityConfusion(self.evaluation_results)
         self.training_impact = TrainingImpact(
