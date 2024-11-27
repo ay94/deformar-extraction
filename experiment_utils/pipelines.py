@@ -257,6 +257,9 @@ class AnalysisExtractionPipeline:
         entity_results = evaluation_results.entity_non_strict_results.copy()
         entity_strict_results = evaluation_results.entity_strict_results.copy()
         token_results = evaluation_results.token_results.copy()
+        print(type(entity_results))
+        print(type(entity_strict_results))
+        print(type(token_results))
         entity_results["Type"] = "Non Strict"
         entity_strict_results["Type"] = "IOB2"
         token_results["Type"] = "Token"
@@ -499,7 +502,7 @@ class DataExtractionPhase:
                 self.experiment_manager.corpora_dir,
                 self.experiment_manager.dataset_name,
                 self.extraction_manager.tokenization_config,
-                
+            
             )
             logging.info("Dataset manager set up successfully.")
         except Exception as e:
