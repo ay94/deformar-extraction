@@ -511,7 +511,7 @@ class Metrics:
 
 
 class StrictEntityConfusion:
-    def __init__(self, entity_outputs):
+    def __init__(self, evaluation_results):
         """
         Initialize the StrictEntityConfusion class.
 
@@ -519,8 +519,8 @@ class StrictEntityConfusion:
             y_true (list): The ground truth entities.
             y_pred (list): The predicted entities.
         """
-        self.y_true = entity_outputs['entity_outputs']['y_true']
-        self.y_pred = entity_outputs['entity_outputs']['y_pred']
+        self.y_true = evaluation_results.entity_outputs['y_true']
+        self.y_pred = evaluation_results.entity_outputs['y_pred']
         
     
     def compute(self):
@@ -709,7 +709,7 @@ class StrictEntityConfusion:
 
 
 class EntityConfusion:
-    def __init__(self, entity_outputs):
+    def __init__(self, evaluation_results):
         """
         Initialize the EntityConfusionMatrix class.
 
@@ -717,8 +717,8 @@ class EntityConfusion:
             y_true (list): The ground truth entities.
             y_pred (list): The predicted entities.
         """
-        self.y_true = entity_outputs['entity_outputs']['y_true']
-        self.y_pred = entity_outputs['entity_outputs']['y_pred']
+        self.y_true = evaluation_results.entity_outputs['y_true']
+        self.y_pred = evaluation_results.entity_outputs['y_pred']
 
     def prepare_entities(self):
         """
