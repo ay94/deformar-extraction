@@ -624,12 +624,6 @@ class DataExtractionPhase:
         file_dir = results_manager.results_dir / config["folder"] 
         file_dir.mkdir(exist_ok=True, parents=True)
         file_path = file_dir / config["filename"]
-        try:
-            train_data = self.analysis_extraction_pipeline.generate_training_data()
-        except:
-            logging.info('Extractors are not setup, setting them up')
-            self.setup_extractors()
-            train_data = self.analysis_extraction_pipeline.generate_training_data()
-            
+        train_data = self.analysis_extraction_pipeline.generate_training_data()
         results_fh.to_json(train_data, file_path.with_suffix(".json"))
         
