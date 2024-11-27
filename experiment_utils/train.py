@@ -328,9 +328,12 @@ class DatasetManager:
         Returns:
             TCDataset: The dataset for the specified split.
         """
+        # data = self.data[split][:1000] if self.testing else self.data[split]
+        data = self.data[split]
+        
         return TCDataset(
-            texts=[x["words"] for x in self.data[split]],
-            tags=[x["tags"] for x in self.data[split]],
+            texts=[x["words"] for x in data],
+            tags=[x["tags"] for x in data],
             label_map=self.labels_map,
             config=self.config,
         )
