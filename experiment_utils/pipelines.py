@@ -390,7 +390,7 @@ class ResultsSaver:
                 self.results_fh.to_json(data, file_path.with_suffix(".json"))
             elif isinstance(data, (go.Figure)):
                 data.write_json(file_path.with_suffix(".json"))
-            else:
+            elif isinstance(data, dict):
                 self.results_fh.save_json(data, file_path.with_suffix(".json"))
         else:
             logging.error("Unsupported data type or format %s in config %s ", fmt, config)
