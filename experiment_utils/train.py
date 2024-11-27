@@ -312,9 +312,9 @@ class DatasetManager:
             splits_data = data.get('splits', {})
             sampled_splits = {}
             for key, items in splits_data.items():
-                if len(items) > 100:
+                if len(items) > 500:
                     import random
-                    sampled_splits[key] = random.sample(items, 100)
+                    sampled_splits[key] = random.sample(items, 500)
                 else:
                     sampled_splits[key] = items
             data['splits'] = sampled_splits  # Replace the original splits data with sampled data

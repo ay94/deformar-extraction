@@ -208,18 +208,19 @@ class AnalysisExtractionPipeline:
         try:
             self.initialize()
             # analysis_data, average_silhouette_score, kmeans_metrics =  self.analysis_manager.run()
-            (
-                analysis_data,
-                average_silhouette_score,
-                kmeans_results,
-                centroids_avg_similarity_matrix,
-            ) = self.analysis_manager.run()
+            
             attention_similarity_heatmap = (
                 self.training_impact.compute_attention_similarities()
             )
             attention_weights_similarity_heatmap = self.training_impact.compare_weights()
             entity_confusion_data = self.entity_confusion.compute()
             entity_strict_confusion_data = self.strict_entity_confusion.compute()
+            (
+                analysis_data,
+                average_silhouette_score,
+                kmeans_results,
+                centroids_avg_similarity_matrix,
+            ) = self.analysis_manager.run()
             self.outputs = {
                 "analysis_data": analysis_data,
                 "entity_non_strict_report": AnalysisExtractionPipeline.convert_dict_to_df(
