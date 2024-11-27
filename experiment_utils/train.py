@@ -268,6 +268,7 @@ class DatasetManager:
         corpora_path: Path,
         dataset_name: str,
         config: TokenizationConfig,
+        sample: bool,
         corpora_file_name: str = "corpora.json",
     ):
         """
@@ -282,13 +283,13 @@ class DatasetManager:
         corpora_fh = FileHandler(corpora_path)
         self.config = config
         self.corpora = corpora_fh.load_json(corpora_file_name)
-        self.corpus = self.get_corpus(dataset_name)
+        self.corpus = self.get_corpus(dataset_name, sample)
         self.data = self.corpus["splits"]
         self.labels = self.corpus["labels"]
         self.labels_map = self.corpus["labels_map"]
         self.inv_labels_map = {v: k for k, v in self.labels_map.items()}
 
-    def get_corpus(self, data_name: str) -> Dict[str, Any]:
+    def get_corpus(self, data_name: str, sample=False) -> Dict[str, Any]:
         """
         Retrieve the corpus information for the specified dataset name.
 
@@ -304,7 +305,22 @@ class DatasetManager:
         """
         if data_name not in self.corpora:
             raise ValueError(f"Data name {data_name} not found in corpora.")
-        return self.corpora[data_name]
+        data = self.corpora[data_name].copy()  # Make a copy of the data to avoid modifying the original
+
+        if sample:
+            # Only modify the 'splits' key with a random sample of 100 from each dataset split if available
+            splits_data = data.get('splits', {})
+            sampled_splits = {}
+            for key, items in splits_data.items():
+                if len(items) > 100:
+                    import random
+                    sampled_splits[key] = random.sample(items, 100)
+                else:
+                    sampled_splits[key] = items
+            data['splits'] = sampled_splits  # Replace the original splits data with sampled data
+        
+        return data
+        # return self.corpora[data_name]
 
     def get_dataset(self, split: str) -> TCDataset:
         """

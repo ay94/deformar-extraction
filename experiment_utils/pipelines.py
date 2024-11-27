@@ -181,7 +181,7 @@ class AnalysisExtractionPipeline:
             self.output_pipeline.model_outputs,
             self.output_pipeline.pretrained_model_outputs,
             self.output_pipeline.data_manager,
-            self.split,
+            self.split
         )
         '''
             TODO: this bit here need to be replaced with the workflow in the dashboard
@@ -448,7 +448,7 @@ class FineTuningSaver:
 
 class DataExtractionPhase:
     def __init__(
-        self, experiment_base_folder: Path, experiment_name: str, variant: str
+        self, experiment_base_folder: Path, experiment_name: str, variant: str, sample: bool = False
     ):
         self.experiment_manager = None
         self.extraction_manager = None
@@ -461,10 +461,10 @@ class DataExtractionPhase:
         self.evaluation_results = None
         self.output_generation_pipeline = None
         self.analysis_extraction_pipeline = None
-        self.setup_managers(experiment_base_folder, experiment_name, variant)
+        self.setup_managers(experiment_base_folder, experiment_name, variant, sample)
 
 
-    def setup_managers(self, experiment_base_folder, experiment_name, variant):
+    def setup_managers(self, experiment_base_folder, experiment_name, variant, sample):
         try:
             self.experiment_manager = ExperimentConfig.from_dict(
                 experiment_base_folder, experiment_name, variant
@@ -499,7 +499,7 @@ class DataExtractionPhase:
                 self.experiment_manager.corpora_dir,
                 self.experiment_manager.dataset_name,
                 self.extraction_manager.tokenization_config,
-            
+                sample
             )
             logging.info("Dataset manager set up successfully.")
         except Exception as e:
@@ -624,6 +624,12 @@ class DataExtractionPhase:
         file_dir = results_manager.results_dir / config["folder"] 
         file_dir.mkdir(exist_ok=True, parents=True)
         file_path = file_dir / config["filename"]
-        train_data = self.analysis_extraction_pipeline.generate_training_data()
+        try:
+            train_data = self.analysis_extraction_pipeline.generate_training_data()
+        except:
+            logging.info('Extractors are not setup, setting them up')
+            self.setup_extractors()
+            train_data = self.analysis_extraction_pipeline.generate_training_data()
+            
         results_fh.to_json(train_data, file_path.with_suffix(".json"))
         

@@ -78,6 +78,7 @@ setup(
         'zipp',
         'ipywidgets',
         'pytest',
-        'datasets'
+        'datasets',
+        'tabulate' # added 27 Nov because it is available in colab but not locally
     ],
 )
