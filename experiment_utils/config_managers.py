@@ -67,7 +67,7 @@ class TrainingConfig:
 class TokenizationStrategy:
     type: str
     index: int
-    schema: Optional[str] = None
+    scheme: Optional[str] = None
 
 
 @dataclass
