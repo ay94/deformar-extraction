@@ -439,12 +439,13 @@ class FineTuneUtils:
                         else torch.cat((labels, data["labels"]), dim=0)
                     )
 
-            preds = preds.detach().cpu().numpy()
-            labels = labels.cpu().numpy()
+            
+            y_true = labels.cpu().numpy()
+            y_pred = preds.detach().cpu().numpy()
             average_loss = total_loss / len(data_loader)
 
             evaluator = Evaluation(
-                inv_labels_map, labels, preds, average_loss, evaluation_config
+                inv_labels_map, y_true, y_pred, evaluation_config
             )
             results = evaluator.generate_results()
             metrics = Metrics.from_dict(results)
@@ -573,17 +574,26 @@ class Trainer:
                     index=False, tablefmt="fancy_grid"
                 )
             )
-
-            logging.info("\nEntity-Level Evaluation Metrics:")
+            
+            logging.info("\nEntity-Level Non Strict Evaluation Metrics:")
             logging.info(
                 "\n" 
                 + 
-                eval_metrics.entity_results.to_markdown(
+                eval_metrics.entity_non_strict_results.to_markdown(
                     index=False, tablefmt="fancy_grid"
                 )
             )
 
-        # Final evaluation on the test set after training loop is finished
+            logging.info("\nEntity-Level Strict Evaluation Metrics:")
+            logging.info(
+                "\n" 
+                + 
+                eval_metrics.entity_strict_results.to_markdown(
+                    index=False, tablefmt="fancy_grid"
+                )
+            )
+
+        # Final evaluation after training loop is finished
         logging.info("Final Evaluation on Test Set")
         final_eval_metrics, final_eval_loss = self.evaluate(self.test_dataloader)
 
@@ -597,11 +607,20 @@ class Trainer:
             )
         )
 
-        logging.info("\nFinal Entity-Level Evaluation Metrics:")
+        logging.info("\nFinal Entity-Level Non Strict Evaluation Metrics:")
         logging.info(
             "\n" 
             + 
-            final_eval_metrics.entity_results.to_markdown(
+            eval_metrics.entity_non_strict_results.to_markdown(
+                index=False, tablefmt="fancy_grid"
+            )
+        )
+
+        logging.info("\nFinal Entity-Level Strict Evaluation Metrics:")
+        logging.info(
+            "\n" 
+            + 
+            eval_metrics.entity_strict_results.to_markdown(
                 index=False, tablefmt="fancy_grid"
             )
         )
