@@ -258,8 +258,11 @@ class AnalysisExtractionPipeline:
         entity_strict_results = evaluation_results.entity_strict_results.copy()
         token_results = evaluation_results.token_results.copy()
         print(type(entity_results))
+        print(entity_results)
         print(type(entity_strict_results))
+        print(entity_strict_results)
         print(type(token_results))
+        print(token_results)
         entity_results["Type"] = "Non Strict"
         entity_strict_results["Type"] = "IOB2"
         token_results["Type"] = "Token"
@@ -450,9 +453,8 @@ class FineTuningSaver:
 
 class DataExtractionPhase:
     def __init__(
-        self, experiment_base_folder: Path, experiment_name: str, variant: str, testing: bool = True
+        self, experiment_base_folder: Path, experiment_name: str, variant: str
     ):
-        self.testing = testing
         self.experiment_manager = None
         self.extraction_manager = None
         self.results_manager = None
