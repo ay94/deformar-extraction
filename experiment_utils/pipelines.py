@@ -189,8 +189,8 @@ class AnalysisExtractionPipeline:
             2- create a confusion matrix
             3- create error confusion matrix
         '''
-        self.entity_confusion = EntityConfusion(self.evaluation_results.entity_outputs)
-        self.strict_entity_confusion = StrictEntityConfusion(self.evaluation_results.entity_outputs)
+        self.entity_confusion = EntityConfusion(self.evaluation_results)
+        self.strict_entity_confusion = StrictEntityConfusion(self.evaluation_results)
         self.training_impact = TrainingImpact(
             self.output_pipeline.data_manager.data[self.split],
             self.output_pipeline.tokenization_outputs,
@@ -447,8 +447,9 @@ class FineTuningSaver:
 
 class DataExtractionPhase:
     def __init__(
-        self, experiment_base_folder: Path, experiment_name: str, variant: str
+        self, experiment_base_folder: Path, experiment_name: str, variant: str, testing: bool = True
     ):
+        self.testing = testing
         self.experiment_manager = None
         self.extraction_manager = None
         self.results_manager = None
@@ -460,10 +461,10 @@ class DataExtractionPhase:
         self.evaluation_results = None
         self.output_generation_pipeline = None
         self.analysis_extraction_pipeline = None
-        self.setup_managers(experiment_base_folder, experiment_name, variant)
+        self.setup_managers(experiment_base_folder, experiment_name, variant, testing)
 
 
-    def setup_managers(self, experiment_base_folder, experiment_name, variant):
+    def setup_managers(self, experiment_base_folder, experiment_name, variant, testing):
         try:
             self.experiment_manager = ExperimentConfig.from_dict(
                 experiment_base_folder, experiment_name, variant
@@ -498,6 +499,7 @@ class DataExtractionPhase:
                 self.experiment_manager.corpora_dir,
                 self.experiment_manager.dataset_name,
                 self.extraction_manager.tokenization_config,
+                testing
             )
             logging.info("Dataset manager set up successfully.")
         except Exception as e:
