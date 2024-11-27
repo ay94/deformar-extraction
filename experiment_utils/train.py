@@ -630,7 +630,7 @@ class Trainer:
         logging.info(
             "\n" 
             + 
-            eval_metrics.entity_non_strict_results.to_markdown(
+            final_eval_metrics.entity_non_strict_results.to_markdown(
                 index=False, tablefmt="fancy_grid"
             )
         )
@@ -639,7 +639,7 @@ class Trainer:
         logging.info(
             "\n" 
             + 
-            eval_metrics.entity_strict_results.to_markdown(
+            final_eval_metrics.entity_strict_results.to_markdown(
                 index=False, tablefmt="fancy_grid"
             )
         )
