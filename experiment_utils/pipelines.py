@@ -461,10 +461,10 @@ class DataExtractionPhase:
         self.evaluation_results = None
         self.output_generation_pipeline = None
         self.analysis_extraction_pipeline = None
-        self.setup_managers(experiment_base_folder, experiment_name, variant, testing)
+        self.setup_managers(experiment_base_folder, experiment_name, variant)
 
 
-    def setup_managers(self, experiment_base_folder, experiment_name, variant, testing):
+    def setup_managers(self, experiment_base_folder, experiment_name, variant):
         try:
             self.experiment_manager = ExperimentConfig.from_dict(
                 experiment_base_folder, experiment_name, variant
@@ -499,7 +499,7 @@ class DataExtractionPhase:
                 self.experiment_manager.corpora_dir,
                 self.experiment_manager.dataset_name,
                 self.extraction_manager.tokenization_config,
-                testing
+                
             )
             logging.info("Dataset manager set up successfully.")
         except Exception as e:
