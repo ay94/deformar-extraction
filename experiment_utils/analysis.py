@@ -613,7 +613,7 @@ class UtilityFunctions:
         
         # Handle cases where one or both labels are 'O'
         if true_label == 'O' and pred_label != 'O':
-            return "Chunk"  # False entity predicted
+            return "Inclusion"  # False entity predicted
         if true_label != 'O' and pred_label == 'O':
             return "Exclusion"  # Missed entity and chunk boundary
         
