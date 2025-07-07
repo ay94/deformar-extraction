@@ -205,7 +205,7 @@ class TCModel(nn.Module):
         if initialize_output_layer:
             self.init_weights()
 
-        self.avg_loss = nn.CrossEntropyLoss()
+        self.cross_entropy_loss = nn.CrossEntropyLoss()
         self.loss_per_item = nn.CrossEntropyLoss(reduction="none")
 
     def init_weights(self):
@@ -218,9 +218,9 @@ class TCModel(nn.Module):
         active_labels = torch.where(
             active_loss,
             target.view(-1),
-            torch.tensor(self.avg_loss.ignore_index).type_as(target),
+            torch.tensor(self.cross_entropy_loss.ignore_index).type_as(target),
         )
-        average_loss = self.avg_loss(active_logits, active_labels)
+        average_loss = self.cross_entropy_loss(active_logits, active_labels)
         items_loss = self.loss_per_item(active_logits, active_labels)
         return average_loss, items_loss
 
@@ -268,6 +268,7 @@ class DatasetManager:
         corpora_path: Path,
         dataset_name: str,
         config: TokenizationConfig,
+        sample: bool,
         corpora_file_name: str = "corpora.json",
     ):
         """
@@ -282,13 +283,13 @@ class DatasetManager:
         corpora_fh = FileHandler(corpora_path)
         self.config = config
         self.corpora = corpora_fh.load_json(corpora_file_name)
-        self.corpus = self.get_corpus(dataset_name)
+        self.corpus = self.get_corpus(dataset_name, sample)
         self.data = self.corpus["splits"]
         self.labels = self.corpus["labels"]
         self.labels_map = self.corpus["labels_map"]
         self.inv_labels_map = {v: k for k, v in self.labels_map.items()}
 
-    def get_corpus(self, data_name: str) -> Dict[str, Any]:
+    def get_corpus(self, data_name: str, sample=False) -> Dict[str, Any]:
         """
         Retrieve the corpus information for the specified dataset name.
 
@@ -304,7 +305,22 @@ class DatasetManager:
         """
         if data_name not in self.corpora:
             raise ValueError(f"Data name {data_name} not found in corpora.")
-        return self.corpora[data_name]
+        data = self.corpora[data_name].copy()  # Make a copy of the data to avoid modifying the original
+
+        if sample:
+            # Only modify the 'splits' key with a random sample of 100 from each dataset split if available
+            splits_data = data.get('splits', {})
+            sampled_splits = {}
+            for key, items in splits_data.items():
+                if len(items) > 500:
+                    import random
+                    sampled_splits[key] = random.sample(items, 500)
+                else:
+                    sampled_splits[key] = items
+            data['splits'] = sampled_splits  # Replace the original splits data with sampled data
+        
+        return data
+        # return self.corpora[data_name]
 
     def get_dataset(self, split: str) -> TCDataset:
         """
@@ -328,9 +344,12 @@ class DatasetManager:
         Returns:
             TCDataset: The dataset for the specified split.
         """
+        # data = self.data[split][:1000] if self.testing else self.data[split]
+        data = self.data[split]
+        
         return TCDataset(
-            texts=[x["words"] for x in self.data[split]],
-            tags=[x["tags"] for x in self.data[split]],
+            texts=[x["words"] for x in data],
+            tags=[x["tags"] for x in data],
             label_map=self.labels_map,
             config=self.config,
         )
@@ -439,12 +458,13 @@ class FineTuneUtils:
                         else torch.cat((labels, data["labels"]), dim=0)
                     )
 
-            preds = preds.detach().cpu().numpy()
-            labels = labels.cpu().numpy()
+            
+            y_true = labels.cpu().numpy()
+            y_pred = preds.detach().cpu().numpy()
             average_loss = total_loss / len(data_loader)
 
             evaluator = Evaluation(
-                inv_labels_map, labels, preds, average_loss, evaluation_config
+                inv_labels_map, y_true, y_pred, evaluation_config
             )
             results = evaluator.generate_results()
             metrics = Metrics.from_dict(results)
@@ -573,17 +593,26 @@ class Trainer:
                     index=False, tablefmt="fancy_grid"
                 )
             )
-
-            logging.info("\nEntity-Level Evaluation Metrics:")
+            
+            logging.info("\nEntity-Level Non Strict Evaluation Metrics:")
             logging.info(
                 "\n" 
                 + 
-                eval_metrics.entity_results.to_markdown(
+                eval_metrics.entity_non_strict_results.to_markdown(
                     index=False, tablefmt="fancy_grid"
                 )
             )
 
-        # Final evaluation on the test set after training loop is finished
+            logging.info("\nEntity-Level Strict Evaluation Metrics:")
+            logging.info(
+                "\n" 
+                + 
+                eval_metrics.entity_strict_results.to_markdown(
+                    index=False, tablefmt="fancy_grid"
+                )
+            )
+
+        # Final evaluation after training loop is finished
         logging.info("Final Evaluation on Test Set")
         final_eval_metrics, final_eval_loss = self.evaluate(self.test_dataloader)
 
@@ -597,11 +626,20 @@ class Trainer:
             )
         )
 
-        logging.info("\nFinal Entity-Level Evaluation Metrics:")
+        logging.info("\nFinal Entity-Level Non Strict Evaluation Metrics:")
         logging.info(
             "\n" 
             + 
-            final_eval_metrics.entity_results.to_markdown(
+            final_eval_metrics.entity_non_strict_results.to_markdown(
+                index=False, tablefmt="fancy_grid"
+            )
+        )
+
+        logging.info("\nFinal Entity-Level Strict Evaluation Metrics:")
+        logging.info(
+            "\n" 
+            + 
+            final_eval_metrics.entity_strict_results.to_markdown(
                 index=False, tablefmt="fancy_grid"
             )
         )

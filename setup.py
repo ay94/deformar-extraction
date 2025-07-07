@@ -36,10 +36,10 @@ setup(
         'nest-asyncio',
         'numba',
         # 'numpy==1.23.5',
-        'numpy',
+        'numpy==1.26.4', # pinning the current version of those libs in colab
         'packaging',
         # 'pandas==1.5.3',
-        'pandas',
+        'pandas==2.2.2', # pinning the current version of those libs in colab
         'parso',
         'pexpect',
         'platformdirs',
@@ -70,7 +70,7 @@ setup(
         'tqdm',
         'traitlets',
         # 'transformers==4.26.0',
-        'transformers',
+        'transformers==4.46.2', # pinning the current version of those libs in colab
         'typing_extensions',
         'umap-learn',
         'urllib3',
@@ -78,6 +78,7 @@ setup(
         'zipp',
         'ipywidgets',
         'pytest',
-        'datasets'
+        'datasets',
+        'tabulate' # added 27 Nov because it is available in colab but not locally
     ],
 )

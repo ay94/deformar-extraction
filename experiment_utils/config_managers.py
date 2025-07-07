@@ -67,7 +67,7 @@ class TrainingConfig:
 class TokenizationStrategy:
     type: str
     index: int
-    schema: Optional[str] = None
+    scheme: Optional[str] = None
 
 
 @dataclass
@@ -253,7 +253,7 @@ class ClusteringConfig:
 @dataclass
 class EvaluationConfig:
     scheme: Optional[str] = None
-    mode: Optional[str] = None
+    # mode: Optional[str] = None
 
     def __post_init__(self):
         self.validate_config()
@@ -263,13 +263,13 @@ class EvaluationConfig:
         return EvaluationConfig(**config_dict)
 
     def validate_config(self):
-        allowed_schemes = ["IOB2", "IOE2", "IOBES"]
-        allowed_modes = [None, "strict"]
+        allowed_schemes = ["IOB2", "IOE2", "IOBES", "BILOU"]
+        # allowed_modes = [None, "strict"]
 
         if self.scheme is not None and self.scheme not in allowed_schemes:
             raise ValueError(f"Scheme must be one of {allowed_schemes} or None")
-        if self.mode not in allowed_modes:
-            raise ValueError(f"Mode must be one of {allowed_modes}")
+        # if self.mode not in allowed_modes:
+        #     raise ValueError(f"Mode must be one of {allowed_modes}")
         logging.info("Evaluation Config validated successfully")
 
 
@@ -397,8 +397,12 @@ class ResultsConfigManager:
         return self.config.get("kMeans_results", {})
     
     @property
-    def entity_confusion_data(self) -> Dict[str, Any]:
-        return self.config.get("entity_confusion_data", {})
+    def entity_non_strict_confusion_data(self) -> Dict[str, Any]:
+        return self.config.get("entity_non_strict_confusion_data", {})
+    
+    @property
+    def entity_strict_confusion_data(self) -> Dict[str, Any]:
+        return self.config.get("entity_strict_confusion_data", {})
     
     @property
     def attention_weights_similarity_matrix(self) -> Dict[str, Any]:

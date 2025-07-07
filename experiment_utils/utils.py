@@ -106,7 +106,9 @@ class FileHandler:
         """Load a complete PyTorch model."""
         file_path = self._create_filename(filename)
         try:
-            model = torch.load(file_path)
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            model = torch.load(file_path, map_location=device)
+            # model = torch.load(file_path)
             model.eval()
             return model
         except FileNotFoundError:

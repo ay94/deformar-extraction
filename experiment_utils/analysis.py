@@ -19,6 +19,8 @@ from sklearn.preprocessing import normalize
 from tqdm.autonotebook import tqdm
 from transformers import AutoModel
 from umap import UMAP
+from seqeval.scheme import auto_detect, Entities
+from seqeval.metrics.sequence_labeling import get_entities
 
 from experiment_utils.tokenization import TokenizationWorkflowManager
 
@@ -604,24 +606,28 @@ class UtilityFunctions:
         """
         Determine the type of error for a given row based on the 'truth' and 'pred' columns.
         """
+        true_label, pred_label = row["true_labels"], row["pred_labels"]
+        # If both are the same, it's correct (no error)
+        if true_label == pred_label:
+            return "No Errors"
+        
+        # Handle cases where one or both labels are 'O'
+        if true_label == 'O' and pred_label != 'O':
+            return "Inclusion"  # False entity predicted
+        if true_label != 'O' and pred_label == 'O':
+            return "Exclusion"  # Missed entity and chunk boundary
+        
+        # Extract entity types without position tags (like "B-", "I-")
+        true_entity = true_label.split("-")[-1] if "-" in true_label else true_label
+        pred_entity = pred_label.split("-")[-1] if "-" in pred_label else pred_label
 
-        true, pred = row["true_labels"], row["pred_labels"]
+        # If entity types are different (e.g., LOC vs. PER)
+        if true_entity != pred_entity:
+            # If both entity type and position (B- vs I-) are wrong
+            return "Type and Chunk" if true_label[0] != pred_label[0] else "Type"
 
-        # Check if both labels are exactly the same, including 'O'
-        if true == pred:
-            return "Correct"
-
-        # Check for 'O' to avoid IndexError when accessing parts of the string
-        elif "O" in [true, pred]:
-            return "Chunk"  # 'Chunk' error since one is 'O' and the other isn't
-
-        # Extract parts after the dash and compare
-        elif true.split("-")[1] != pred.split("-")[1]:
-            return "Entity"
-
-        # If not correct and no entity type mismatch, it must be a chunk error
-        else:
-            return "Chunk"
+        # If entity types are the same but position tags (B- vs I-) are wrong
+        return "Chunk"
 
     @staticmethod
     def softmax(logits):
@@ -1164,12 +1170,17 @@ class DataAnnotator:
 
     def annotate_entity(self):
         logging.info("Annotating entity...")
-        self.analysis_data["tr_entity"] = self.analysis_data["true_labels"].apply(
-            lambda x: x if x in ["[CLS]", "[SEP]", "IGNORED"] else x.split("-")[-1]
-        )
-        self.analysis_data["pr_entity"] = self.analysis_data["pred_labels"].apply(
-            lambda x: x if x in ["[CLS]", "[SEP]", "IGNORED"] else x.split("-")[-1]
-        )
+        core_data = self.analysis_data[self.analysis_data['labels'] != -100].copy()
+        y_true = core_data.groupby('sentence_ids')['true_labels'].apply(list).tolist()
+        y_pred = core_data.groupby('sentence_ids')['pred_labels'].apply(list).tolist()
+
+        # Modify data
+        annotator = EntityAnnotator(y_true, y_pred)  # Assuming EntityAnnotator is defined elsewhere
+        self.analysis_data = annotator.annotate_entity_info(self.analysis_data)
+
+        # Misalignment checking
+        self.analysis_data['true_aligned_scheme'] = self.analysis_data['true_entities'] == self.analysis_data['strict_true_entities']
+        self.analysis_data['pred_aligned_scheme'] = self.analysis_data['pred_entities'] == self.analysis_data['strict_pred_entities']
 
     def annotate_prediction_entropy(self):
         logging.info("Annotating prediction entropy...")
@@ -1203,11 +1214,81 @@ class DataAnnotator:
         self.annotate_token_entropy()
         self.annotate_word_entropy()
         self.annotate_tokenization_rate()
-        self.annotate_entity()
         self.annotate_error_types()
         self.annotate_prediction_entropy()
         self.annotate_pretrained_coordinates()
+        self.annotate_entity()
         return self.analysis_data
+
+
+class EntityAnnotator:
+    def __init__(self, y_true, y_pred):
+        """Initialize the annotator with true and predicted labels."""
+        self.y_true = y_true
+        self.y_pred = y_pred
+        self.scheme = auto_detect(self.y_true, False)
+    
+    def extract_entities(self):
+        """Extract entities based on the scheme detected."""
+        self.entities_strict_true = Entities(self.y_true, self.scheme, False)
+        self.entities_strict_pred = Entities(self.y_pred, self.scheme, False)
+        self.entities_true = get_entities(self.y_true)
+        self.entities_pred = get_entities(self.y_pred)
+
+    def process_strict_entities(self, y_true, entities_true, sen_id):
+        """Process entities strictly, labeling full spans in a sentence."""
+        max_len = len(y_true[sen_id])
+        results = ['O'] * max_len
+        for idx in range(max_len):
+            for entity in entities_true[sen_id]:
+                _, t, s, e = entity.to_tuple()
+                if s == idx and (e-s) > 0:
+                    for i in range(e-s):
+                        results[s + i] = t
+                elif (e-s) == 0:
+                    results[s] = t
+        return results
+    
+    def process_non_strict_entities(self, y_true, sen_id):
+        """Process entities non-strictly, marking only the start and end of each entity."""
+        max_len = len(y_true[sen_id])
+        results = ['O'] * max_len
+        for entity in get_entities(y_true[sen_id]):
+            t, s, e = entity
+            if s == e:
+                # If start and end are the same, only mark the start
+                results[s] = t
+            else:
+                # Mark all indices from start to end inclusive
+                for i in range(s, e + 1):
+                    results[i] = t
+        return results
+
+    def process_sentences(self, analysis_data, y_data, entities, label_column, strict=False):
+        """Annotate sentences with entity information, either strictly or non-strictly."""
+        entity_annotations = []
+        for sentence_id, sentence_df in analysis_data.groupby('sentence_ids'):
+            if strict: 
+                results = self.process_strict_entities(y_data, entities, sentence_id)
+            else:
+                results = self.process_non_strict_entities(y_data, sentence_id)
+            original_series = sentence_df[label_column]
+            is_metadata = original_series.apply(lambda x: x not in ['[CLS]', '[SEP]', 'IGNORED'])
+            new_series = original_series.copy()
+            new_series.loc[is_metadata] = results
+            entity_annotations.append(new_series)
+        return pd.concat(entity_annotations)
+
+    def annotate_entity_info(self, analysis_data):
+        """Add annotated entity information to the analysis data for both true and predicted labels."""
+        self.extract_entities()  # Ensure entities are extracted before processing
+        analysis_data['strict_true_entities'] = self.process_sentences(analysis_data, self.y_true, self.entities_strict_true.entities, 'true_labels', True)
+        analysis_data['strict_pred_entities'] = self.process_sentences(analysis_data, self.y_pred, self.entities_strict_pred.entities, 'pred_labels', True)
+        analysis_data['true_entities'] = self.process_sentences(analysis_data, self.y_true, self.entities_true, 'true_labels')
+        analysis_data['pred_entities'] = self.process_sentences(analysis_data, self.y_pred, self.entities_pred, 'pred_labels')
+        
+        return analysis_data
+
 
 
 class AnalysisWorkflowManager:
@@ -1338,178 +1419,178 @@ class AnalysisWorkflowManager:
             logging.error("Error in generating training data frame: %s", e)
             raise
 
+# This whole class need to be scrapped and replaced by the code provided in seqeval library, you can find that code in a notebook called strict-mode in the dashobard. 
+# class Entity:
+#     def __init__(self, outputs):
+#         self.y_true = outputs["y_true"]
+#         self.y_pred = outputs["y_pred"]
+#         true = self.get_entities(self.y_true)
+#         pred = self.get_entities(self.y_pred)
+#         self.seq_true, self.seq_pred = self.compute_entity_location(true, pred)
 
-class Entity:
-    def __init__(self, outputs):
-        self.y_true = outputs["y_true"]
-        self.y_pred = outputs["y_pred"]
-        true = self.get_entities(self.y_true)
-        pred = self.get_entities(self.y_pred)
-        self.seq_true, self.seq_pred = self.compute_entity_location(true, pred)
+#     def end_of_chunk(self, prev_tag, tag, prev_type, type_):
+#         """Checks if a chunk ended between the previous and current word.
 
-    def end_of_chunk(self, prev_tag, tag, prev_type, type_):
-        """Checks if a chunk ended between the previous and current word.
+#         Args:
+#             prev_tag: previous chunk tag.
+#             tag: current chunk tag.
+#             prev_type: previous type.
+#             type_: current type.
 
-        Args:
-            prev_tag: previous chunk tag.
-            tag: current chunk tag.
-            prev_type: previous type.
-            type_: current type.
+#         Returns:
+#             chunk_end: boolean.
+#         """
+#         chunk_end = False
 
-        Returns:
-            chunk_end: boolean.
-        """
-        chunk_end = False
+#         if prev_tag == "E":
+#             chunk_end = True
+#         if prev_tag == "S":
+#             chunk_end = True
 
-        if prev_tag == "E":
-            chunk_end = True
-        if prev_tag == "S":
-            chunk_end = True
+#         if prev_tag == "B" and tag == "B":
+#             chunk_end = True
+#         if prev_tag == "B" and tag == "S":
+#             chunk_end = True
+#         if prev_tag == "B" and tag == "O":
+#             chunk_end = True
+#         if prev_tag == "I" and tag == "B":
+#             chunk_end = True
+#         if prev_tag == "I" and tag == "S":
+#             chunk_end = True
+#         if prev_tag == "I" and tag == "O":
+#             chunk_end = True
 
-        if prev_tag == "B" and tag == "B":
-            chunk_end = True
-        if prev_tag == "B" and tag == "S":
-            chunk_end = True
-        if prev_tag == "B" and tag == "O":
-            chunk_end = True
-        if prev_tag == "I" and tag == "B":
-            chunk_end = True
-        if prev_tag == "I" and tag == "S":
-            chunk_end = True
-        if prev_tag == "I" and tag == "O":
-            chunk_end = True
+#         if prev_tag != "O" and prev_tag != "." and prev_type != type_:
+#             chunk_end = True
 
-        if prev_tag != "O" and prev_tag != "." and prev_type != type_:
-            chunk_end = True
+#         return chunk_end
 
-        return chunk_end
+#     def start_of_chunk(self, prev_tag, tag, prev_type, type_):
+#         """Checks if a chunk started between the previous and current word.
 
-    def start_of_chunk(self, prev_tag, tag, prev_type, type_):
-        """Checks if a chunk started between the previous and current word.
+#         Args:
+#             prev_tag: previous chunk tag.
+#             tag: current chunk tag.
+#             prev_type: previous type.
+#             type_: current type.
 
-        Args:
-            prev_tag: previous chunk tag.
-            tag: current chunk tag.
-            prev_type: previous type.
-            type_: current type.
+#         Returns:
+#             chunk_start: boolean.
+#         """
+#         chunk_start = False
 
-        Returns:
-            chunk_start: boolean.
-        """
-        chunk_start = False
+#         if tag == "B":
+#             chunk_start = True
+#         if tag == "S":
+#             chunk_start = True
 
-        if tag == "B":
-            chunk_start = True
-        if tag == "S":
-            chunk_start = True
+#         if prev_tag == "E" and tag == "E":
+#             chunk_start = True
+#         if prev_tag == "E" and tag == "I":
+#             chunk_start = True
+#         if prev_tag == "S" and tag == "E":
+#             chunk_start = True
+#         if prev_tag == "S" and tag == "I":
+#             chunk_start = True
+#         if prev_tag == "O" and tag == "E":
+#             chunk_start = True
+#         if prev_tag == "O" and tag == "I":
+#             chunk_start = True
 
-        if prev_tag == "E" and tag == "E":
-            chunk_start = True
-        if prev_tag == "E" and tag == "I":
-            chunk_start = True
-        if prev_tag == "S" and tag == "E":
-            chunk_start = True
-        if prev_tag == "S" and tag == "I":
-            chunk_start = True
-        if prev_tag == "O" and tag == "E":
-            chunk_start = True
-        if prev_tag == "O" and tag == "I":
-            chunk_start = True
+#         if tag != "O" and tag != "." and prev_type != type_:
+#             chunk_start = True
 
-        if tag != "O" and tag != "." and prev_type != type_:
-            chunk_start = True
+#         return chunk_start
 
-        return chunk_start
+#     def get_entities(self, seq, suffix=False):
+#         """Gets entities from sequence.
 
-    def get_entities(self, seq, suffix=False):
-        """Gets entities from sequence.
+#         Args:
+#             seq (list): sequence of labels.
 
-        Args:
-            seq (list): sequence of labels.
+#         Returns:
+#             list: list of (chunk_type, chunk_start, chunk_end).
 
-        Returns:
-            list: list of (chunk_type, chunk_start, chunk_end).
+#         Example:
+#             >>> from seqeval.metrics.sequence_labeling import get_entities
+#             >>> seq = ['B-PER', 'I-PER', 'O', 'B-LOC']
+#             >>> get_entities(seq)
+#             [('PER', 0, 1), ('LOC', 3, 3)]
+#         """
 
-        Example:
-            >>> from seqeval.metrics.sequence_labeling import get_entities
-            >>> seq = ['B-PER', 'I-PER', 'O', 'B-LOC']
-            >>> get_entities(seq)
-            [('PER', 0, 1), ('LOC', 3, 3)]
-        """
+#         def _validate_chunk(chunk, suffix):
+#             if chunk in ["O", "B", "I", "E", "S"]:
+#                 return
 
-        def _validate_chunk(chunk, suffix):
-            if chunk in ["O", "B", "I", "E", "S"]:
-                return
+#             if suffix:
+#                 if not chunk.endswith(("-B", "-I", "-E", "-S")):
+#                     warnings.warn("{} seems not to be NE tag.".format(chunk))
 
-            if suffix:
-                if not chunk.endswith(("-B", "-I", "-E", "-S")):
-                    warnings.warn("{} seems not to be NE tag.".format(chunk))
+#             else:
+#                 if not chunk.startswith(("B-", "I-", "E-", "S-")):
+#                     warnings.warn("{} seems not to be NE tag.".format(chunk))
 
-            else:
-                if not chunk.startswith(("B-", "I-", "E-", "S-")):
-                    warnings.warn("{} seems not to be NE tag.".format(chunk))
+#         # for nested list
+#         if any(isinstance(s, list) for s in seq):
+#             seq = [item for sublist in seq for item in sublist + ["O"]]
 
-        # for nested list
-        if any(isinstance(s, list) for s in seq):
-            seq = [item for sublist in seq for item in sublist + ["O"]]
+#         prev_tag = "O"
+#         prev_type = ""
+#         begin_offset = 0
+#         chunks = []
+#         for i, chunk in enumerate(seq + ["O"]):
+#             _validate_chunk(chunk, suffix)
 
-        prev_tag = "O"
-        prev_type = ""
-        begin_offset = 0
-        chunks = []
-        for i, chunk in enumerate(seq + ["O"]):
-            _validate_chunk(chunk, suffix)
+#             if suffix:
+#                 tag = chunk[-1]
+#                 type_ = chunk[:-1].rsplit("-", maxsplit=1)[0] or "_"
+#             else:
+#                 tag = chunk[0]
+#                 type_ = chunk[1:].split("-", maxsplit=1)[-1] or "_"
 
-            if suffix:
-                tag = chunk[-1]
-                type_ = chunk[:-1].rsplit("-", maxsplit=1)[0] or "_"
-            else:
-                tag = chunk[0]
-                type_ = chunk[1:].split("-", maxsplit=1)[-1] or "_"
+#             if self.end_of_chunk(prev_tag, tag, prev_type, type_):
+#                 chunks.append((prev_type, begin_offset, i - 1))
+#             if self.start_of_chunk(prev_tag, tag, prev_type, type_):
+#                 begin_offset = i
+#             prev_tag = tag
+#             prev_type = type_
 
-            if self.end_of_chunk(prev_tag, tag, prev_type, type_):
-                chunks.append((prev_type, begin_offset, i - 1))
-            if self.start_of_chunk(prev_tag, tag, prev_type, type_):
-                begin_offset = i
-            prev_tag = tag
-            prev_type = type_
+#         return chunks
 
-        return chunks
+#     def compute_entity_location(self, true, pred):
 
-    def compute_entity_location(self, true, pred):
+#         set1 = set(true)
+#         set2 = set(pred)
 
-        set1 = set(true)
-        set2 = set(pred)
+#         # Find elements present in list1 but not in list2
+#         only_in_set1 = set1 - set2
 
-        # Find elements present in list1 but not in list2
-        only_in_set1 = set1 - set2
+#         # Find elements present in list2 but not in list1
+#         only_in_set2 = set2 - set1
 
-        # Find elements present in list2 but not in list1
-        only_in_set2 = set2 - set1
+#         # Add the missing elements to the corresponding lists
+#         true.extend([("O",) + t[1:] for t in only_in_set2])
+#         pred.extend([("O",) + t[1:] for t in only_in_set1])
 
-        # Add the missing elements to the corresponding lists
-        true.extend([("O",) + t[1:] for t in only_in_set2])
-        pred.extend([("O",) + t[1:] for t in only_in_set1])
+#         seq_true = [t[0] for t in sorted(true, key=lambda x: x[1:])]
+#         seq_pred = [t[0] for t in sorted(pred, key=lambda x: x[1:])]
+#         return seq_true, seq_pred
 
-        seq_true = [t[0] for t in sorted(true, key=lambda x: x[1:])]
-        seq_pred = [t[0] for t in sorted(pred, key=lambda x: x[1:])]
-        return seq_true, seq_pred
+#     def extract_tag(self, tag_id, lst):
+#         i = 0
+#         for j, sen in enumerate(lst):
+#             for t in sen:
+#                 if i + j == tag_id:
+#                     return t, j
+#                 i = i + 1
 
-    def extract_tag(self, id, lst):
-        i = 0
-        for j, sen in enumerate(lst):
-            for t in sen:
-                if i + j == id:
-                    return t, j
-                i = i + 1
-
-    def generate_entity_confusion_data(
-        self,
-    ):
-        confusion_data = pd.DataFrame()
-        confusion_data["true_entity"] = self.seq_true
-        confusion_data["pred_entity"] = self.seq_pred
-        return confusion_data
+#     def generate_entity_confusion_data(
+#         self,
+#     ):
+#         confusion_data = pd.DataFrame()
+#         confusion_data["true_entity"] = self.seq_true
+#         confusion_data["pred_entity"] = self.seq_pred
+#         return confusion_data
 
 
 class AttentionSimilarity:

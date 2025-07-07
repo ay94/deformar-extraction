@@ -6,13 +6,13 @@ import pandas as pd
 import plotly.graph_objects as go
 from transformers import AutoModel
 
-from experiment_utils.analysis import (AnalysisWorkflowManager, Entity,
+from experiment_utils.analysis import (AnalysisWorkflowManager,
                                        TrainingImpact)
 from experiment_utils.config_managers import (ExperimentConfig,
                                               ExtractionConfigManager,
                                               FineTuningConfigManager,
                                               ResultsConfigManager)
-from experiment_utils.evaluation import Metrics
+from experiment_utils.evaluation import Metrics, EntityConfusion, StrictEntityConfusion
 from experiment_utils.model_outputs import (
     ModelOutputWorkflowManager, PretrainedModelOutputWorkflowManager)
 from experiment_utils.tokenization import TokenizationWorkflowManager
@@ -148,7 +148,8 @@ class AnalysisExtractionPipeline:
         self.split = split
         self.outputs = None
         self.analysis_manager = None
-        self.entity_confusion = None
+        self.entity_non_strict_confusion = None
+        self.entity_strict_confusion = None
         self.training_impact = None
         self.initialized = False
 
@@ -180,9 +181,10 @@ class AnalysisExtractionPipeline:
             self.output_pipeline.model_outputs,
             self.output_pipeline.pretrained_model_outputs,
             self.output_pipeline.data_manager,
-            self.split,
+            self.split
         )
-        self.entity_confusion = Entity(self.evaluation_results.entity_outputs)
+        self.entity_confusion = EntityConfusion(self.evaluation_results)
+        self.strict_entity_confusion = StrictEntityConfusion(self.evaluation_results)
         self.training_impact = TrainingImpact(
             self.output_pipeline.data_manager.data[self.split],
             self.output_pipeline.tokenization_outputs,
@@ -200,32 +202,32 @@ class AnalysisExtractionPipeline:
         try:
             self.initialize()
             # analysis_data, average_silhouette_score, kmeans_metrics =  self.analysis_manager.run()
+            
+            attention_similarity_heatmap = (
+                self.training_impact.compute_attention_similarities()
+            )
+            attention_weights_similarity_heatmap = self.training_impact.compare_weights()
+            entity_confusion_data = self.entity_confusion.compute()
+            entity_strict_confusion_data = self.strict_entity_confusion.compute()
             (
                 analysis_data,
                 average_silhouette_score,
                 kmeans_results,
                 centroids_avg_similarity_matrix,
             ) = self.analysis_manager.run()
-            attention_similarity_heatmap = (
-                self.training_impact.compute_attention_similarities()
-            )
-            attention_weights_similarity_heatmap = self.training_impact.compare_weights()
-            entity_confusion_data = (
-                self.entity_confusion.generate_entity_confusion_data()
-            )
-
             self.outputs = {
                 "analysis_data": analysis_data,
-                "entity_report": AnalysisExtractionPipeline.convert_dict_to_df(
-                    self.evaluation_results.entity_report
+                "entity_non_strict_report": AnalysisExtractionPipeline.convert_dict_to_df(
+                    self.evaluation_results.entity_non_strict_report
+                ),
+                "entity_strict_report": AnalysisExtractionPipeline.convert_dict_to_df(
+                    self.evaluation_results.entity_strict_report
                 ),
                 "token_report": AnalysisExtractionPipeline.convert_dict_to_df(
                     self.evaluation_results.token_report
                 ),
                 "results": AnalysisExtractionPipeline.combine_results(
-                    pd.DataFrame(self.evaluation_results.entity_results),
-                    pd.DataFrame(self.evaluation_results.token_results),
-                    average_silhouette_score,
+                    self.evaluation_results
                 ),
                 "kmeans_results": AnalysisExtractionPipeline.combine_kmeans_results(
                     kmeans_results
@@ -235,7 +237,8 @@ class AnalysisExtractionPipeline:
                 "attention_similarity_matrix": self.training_impact.similarity_matrix,
                 "attention_weights_similarity_heatmap": attention_weights_similarity_heatmap,
                 "attention_weights_similarity_matrix": self.training_impact.weight_diff_matrix,
-                "entity_confusion_data": entity_confusion_data,
+                "entity_non_strict_confusion_data": entity_confusion_data,
+                "entity_strict_confusion_data": entity_strict_confusion_data,
             }
         except Exception as e:
             logging.error("Error running AnalysisExtractionPipeline: %s", e)
@@ -245,14 +248,19 @@ class AnalysisExtractionPipeline:
         return train_data
 
     @staticmethod
-    def combine_results(entity_results, token_results, average_silhouette_scores):
-
-        entity_results["Type"] = "Entity"
+    def combine_results(evaluation_results):
+        # because saving the finetuning data converts those into dict we need to convert them back to df
+        entity_results = pd.DataFrame(evaluation_results.entity_non_strict_results)
+        entity_strict_results = pd.DataFrame(evaluation_results.entity_strict_results)
+        token_results = pd.DataFrame(evaluation_results.token_results)
+        entity_results["Type"] = "Non Strict"
+        entity_strict_results["Type"] = "IOB2"
         token_results["Type"] = "Token"
-        df_combined = pd.concat([entity_results, token_results]).reset_index(drop=True)
-        # Add scores as new columns
-        for key, value in average_silhouette_scores.items():
-            df_combined[key] = value
+        df_combined = pd.concat([
+            entity_results, 
+            entity_strict_results,
+            token_results
+            ]).reset_index(drop=True)
         return df_combined
 
     @staticmethod
@@ -266,8 +274,11 @@ class AnalysisExtractionPipeline:
     def analysis_data(self):
         return self.outputs.get("analysis_data")
     @property
-    def entity_report(self):
-        return self.outputs.get("entity_report")
+    def entity_non_strict_report(self):
+        return self.outputs.get("entity_non_strict_report")
+    @property
+    def entity_strict_report(self):
+        return self.outputs.get("entity_strict_report")
     @property
     def token_report(self):
         return self.outputs.get("token_report")
@@ -294,7 +305,9 @@ class AnalysisExtractionPipeline:
         return self.outputs.get("attention_weights_similarity_heatmap")
     @property
     def entity_confusion_data(self):
-        return self.outputs.get("entity_confusion_data")
+        return self.outputs.get("entity_non_strict_confusion_data")
+    def entity_strict_confusion_data(self):
+        return self.outputs.get("entity_strict_confusion_data")
 
     @property
     def train_df(self):
@@ -377,6 +390,8 @@ class ResultsSaver:
                 self.results_fh.to_json(data, file_path.with_suffix(".json"))
             elif isinstance(data, (go.Figure)):
                 data.write_json(file_path.with_suffix(".json"))
+            elif isinstance(data, dict):
+                self.results_fh.save_json(data, file_path.with_suffix(".json"))
         else:
             logging.error("Unsupported data type or format %s in config %s ", fmt, config)
 
@@ -430,7 +445,7 @@ class FineTuningSaver:
 
 class DataExtractionPhase:
     def __init__(
-        self, experiment_base_folder: Path, experiment_name: str, variant: str
+        self, experiment_base_folder: Path, experiment_name: str, variant: str, sample: bool = False
     ):
         self.experiment_manager = None
         self.extraction_manager = None
@@ -443,10 +458,10 @@ class DataExtractionPhase:
         self.evaluation_results = None
         self.output_generation_pipeline = None
         self.analysis_extraction_pipeline = None
-        self.setup_managers(experiment_base_folder, experiment_name, variant)
+        self.setup_managers(experiment_base_folder, experiment_name, variant, sample)
 
 
-    def setup_managers(self, experiment_base_folder, experiment_name, variant):
+    def setup_managers(self, experiment_base_folder, experiment_name, variant, sample):
         try:
             self.experiment_manager = ExperimentConfig.from_dict(
                 experiment_base_folder, experiment_name, variant
@@ -481,6 +496,7 @@ class DataExtractionPhase:
                 self.experiment_manager.corpora_dir,
                 self.experiment_manager.dataset_name,
                 self.extraction_manager.tokenization_config,
+                sample
             )
             logging.info("Dataset manager set up successfully.")
         except Exception as e:
