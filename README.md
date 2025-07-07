@@ -62,17 +62,6 @@ Here's a brief overview of the key components in this library:
 
 - **`utils.py`**: A collection of utility functions and classes used throughout the library. This includes file handling, data loading, and other helper functions.
 
-## Getting Started
-
-### Installation
-
-To use this library, clone the repository and install the required dependencies:
-
-```bash
-git clone https://github.com/your-repo/my-library.git
-cd my-library
-pip install -r requirements.txt
-```
 
 ## Usage
 
