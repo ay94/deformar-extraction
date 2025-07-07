@@ -1,7 +1,4 @@
 # DeformAR-Extraction
-This repository accompanies our EMNLP 2025 System Demonstration submission. It contains the **data extraction pipeline** for DeformAR, focused on converting raw Arabic text into structured outputs. The pipeline is designed for **easy reproduction in Google Colab or Jupyter** using notebooks and organized config/data folders.
-
-# DeformAR-Extraction
 
 This repository accompanies our EMNLP 2025 System Demonstration submission. It contains the **data extraction pipeline** for DeformAR, focused on converting raw Arabic text into structured outputs (entities, relations). The pipeline is designed for **easy reproduction in Google Colab**, and integrates seamlessly with Google Drive.
 
