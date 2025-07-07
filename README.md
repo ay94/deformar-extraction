@@ -1,9 +1,48 @@
-# My Library
+# DeformAR-Extraction
+This repository accompanies our EMNLP 2025 System Demonstration submission. It contains the **data extraction pipeline** for DeformAR, focused on converting raw Arabic text into structured outputs. The pipeline is designed for **easy reproduction in Google Colab or Jupyter** using notebooks and organized config/data folders.
 
-## Overview
+# DeformAR-Extraction
 
-This library is designed to facilitate [insert purpose here, e.g., machine learning model development, data processing, etc.]. It provides a structured and modular approach to handling various tasks, such as configuration management, data preprocessing, model training, and evaluation.
+This repository accompanies our EMNLP 2025 System Demonstration submission. It contains the **data extraction pipeline** for DeformAR, focused on converting raw Arabic text into structured outputs (entities, relations). The pipeline is designed for **easy reproduction in Google Colab**, and integrates seamlessly with Google Drive.
 
+---
+
+## 🧪 Running the DeformAR Extraction Pipeline
+
+All notebooks are located in the `reproducability/notebooks/` directory.
+
+### Step 1: Generate Corpora
+Convert raw data into structured corpora (e.g., JSON or plain text formats).
+
+Run: [`00-generate-corpora.ipynb`](reproducability/notebooks/00-generate-corpora.ipynb)
+
+### Step 2: Initialize Configuration
+Prepare experiment and extraction configurations.
+
+- [`01-initialize-anercorp.ipynb`](reproducability/notebooks/01-initialize-anercorp.ipynb)
+- [`01-initialize-conll2003.ipynb`](reproducability/notebooks/01-initialize-conll2003.ipynb)
+
+### Step 3: Fine-tune and Extract Data
+Fine-tune models and extract structured output.
+
+- [`02-extract-anercorp.ipynb`](reproducability/notebooks/02-extract-anercorp.ipynb)
+- [`02-extract-conll2003.ipynb`](reproducability/notebooks/02-extract-conll2003.ipynb)
+
+---
+
+## ⚙️ Quickstart (Google Colab)
+
+The pipeline is designed and tested in **Google Colab with GPU**. Local use is possible but may require path and device configuration changes.
+
+To run in Colab:
+
+```python
+# Install the package using your GitHub token (add as a secret in Colab)
+if 'google.colab' in str(get_ipython()):
+    from google.colab import userdata
+    access_token = userdata.get('DEFORMER_TOKEN')  # Add this in Colab > Secrets
+    !pip install git+https://$access_token@github.com/ay94/deformer-extraction.git@main
+```
 ## Project Structure
 
 Here's a brief overview of the key components in this library:
