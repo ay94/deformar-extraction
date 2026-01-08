@@ -536,6 +536,9 @@ class DataExtractionPhase:
         try:
             fine_tuning_fh = FileHandler(self.fine_tuning_manager.save_dir)
             results_dict = fine_tuning_fh.load_json("evaluation_metrics.json")
+            import torch
+            from experiment_utils.train import TCModel # Ensure this import exists
+            torch.serialization.add_safe_globals([TCModel])
             model = fine_tuning_fh.load_model("model_binary.bin")
             model.enable_attentions()
             self.evaluation_results = Metrics.from_dict(results_dict)
