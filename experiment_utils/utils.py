@@ -107,7 +107,7 @@ class FileHandler:
         file_path = self._create_filename(filename)
         try:
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-            model = torch.load(file_path, map_location=device)
+            model = torch.load(file_path, map_location=device, weights_only=False)
             # model = torch.load(file_path)
             model.eval()
             return model

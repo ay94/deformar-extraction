@@ -540,7 +540,7 @@ class DataExtractionPhase:
             # from experiment_utils.train import TCModel # Ensure this import exists
             # torch.serialization.add_safe_globals([TCModel])
             # model = fine_tuning_fh.load_model("model_binary.bin")
-            model = fine_tuning_fh.load_model("model_binary.bin", weights_only=False)
+            model = fine_tuning_fh.load_model("model_binary.bin")
             model.enable_attentions()
             self.evaluation_results = Metrics.from_dict(results_dict)
             self.output_generation_pipeline = OutputGenerationPipeline(
